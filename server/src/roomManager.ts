@@ -31,8 +31,11 @@ const DEFAULT_SETTINGS = {
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
+  private heartbeat: NodeJS.Timeout;
 
-  constructor(private io: Server) {}
+  constructor(private io: Server) {
+    this.heartbeat = setInterval(() => this.tickRooms(), 1000);
+  }
 
   createRoom(hostName: string, socket: Socket): OutgoingRoomState {
     const code = this.generateRoomCode();
@@ -349,6 +352,29 @@ export class RoomManager {
     }, room.settings.secondsToReveal * 1000);
 
     this.emitRoom(room);
+  }
+
+  private tickRooms(): void {
+    const now = Date.now();
+    for (const room of this.rooms.values()) {
+      if (room.gameState === "collectingAnswers" && room.deadlines.answer && now >= room.deadlines.answer) {
+        this.startVotingPhase(room);
+        continue;
+      }
+      if (room.gameState === "voting" && room.deadlines.vote && now >= room.deadlines.vote) {
+        this.revealResults(room);
+        continue;
+      }
+      if (room.gameState === "showingResults" && room.deadlines.reveal && now >= room.deadlines.reveal) {
+        this.clearTimer(room, "reveal");
+        if (room.rounds.length >= room.settings.maxRounds) {
+          room.gameState = "finalSummary";
+          this.emitRoom(room);
+        } else {
+          this.advanceRound(room);
+        }
+      }
+    }
   }
 
   private createRound(room: Room): Round {
