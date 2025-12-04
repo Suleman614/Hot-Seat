@@ -107,7 +107,7 @@ export class RoomManager {
       }
     }
 
-    if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < 3) {
+    if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < 2) {
       this.clearTimers(room);
       room.gameState = "finalSummary";
     }
@@ -137,8 +137,8 @@ export class RoomManager {
     if (!player.isHost) {
       throw new Error("Only the host can start");
     }
-    if (room.players.length < 3) {
-      throw new Error("Need at least 3 players");
+    if (room.players.length < 2) {
+      throw new Error("Need at least 2 players");
     }
     if (room.gameState !== "lobby" && room.gameState !== "finalSummary") {
       throw new Error("Game already started");
@@ -262,7 +262,7 @@ export class RoomManager {
   private advanceRound(room: Room): void {
     this.clearTimers(room);
     const connectedPlayers = room.players.filter((p) => p.connected);
-    if (connectedPlayers.length < 3) {
+    if (connectedPlayers.length < 2) {
       room.gameState = "finalSummary";
       this.emitRoom(room);
       return;
