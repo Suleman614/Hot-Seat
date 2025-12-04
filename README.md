@@ -67,7 +67,7 @@ Serve `client/dist` with any static host and run `node dist/index.js` inside `se
 ## Gameplay Overview
 
 1. Host creates a room and shares the generated code.
-2. Players join the lobby (at least 3 required). Host can tweak timer lengths and round counts.
+2. Players join the lobby (3+ by default; configurable via `MIN_PLAYERS`). Host can tweak timer lengths and round counts.
 3. Each round assigns a rotating hot seat and a random question.
 4. Hot seat submits the real answer while everyone else submits decoys.
 5. Voting phase: everyone except the hot seat guesses the real answer (cannot vote for themselves).
