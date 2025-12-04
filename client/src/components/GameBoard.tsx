@@ -17,6 +17,8 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
 
   const myVote = me && currentRound?.votes.find((vote) => vote.voterId === me.id);
   const hotSeat = currentRound && room.players.find((p) => p.id === currentRound.hotSeatPlayerId);
+  const mySubmission = me && currentRound?.submissions.find((submission) => submission.playerId === me.id);
+  const hasSubmittedAnswer = Boolean(mySubmission);
 
   const submissionMap = useMemo(() => {
     if (!currentRound) return new Map<string, number>();
@@ -37,10 +39,9 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
 
   const handleSubmitAnswer = async (event: FormEvent) => {
     event.preventDefault();
-    if (!answer.trim()) return;
+    if (!answer.trim() || hasSubmittedAnswer) return;
     setSubmitting(true);
     await onSubmitAnswer(answer.trim());
-    setAnswer("");
     setSubmitting(false);
   };
 
@@ -91,18 +92,24 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
               className="w-full rounded-3xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-base text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
               rows={4}
               placeholder={me.isHotSeat ? "Reveal the real answer..." : "Invent a fake answer..."}
-              disabled={submitting}
-              value={answer}
+              disabled={submitting || hasSubmittedAnswer}
+              value={hasSubmittedAnswer ? mySubmission?.text ?? "" : answer}
+              readOnly={hasSubmittedAnswer}
               onChange={(event) => setAnswer(event.target.value)}
               maxLength={160}
             />
             <button
               type="submit"
-              disabled={!answer.trim() || submitting}
+              disabled={!answer.trim() || submitting || hasSubmittedAnswer}
               className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:bg-indigo-300"
             >
-              {me.isHotSeat ? "Submit real answer" : "Lock in bluff"}
+              {hasSubmittedAnswer ? "Answer locked" : me.isHotSeat ? "Submit real answer" : "Lock in bluff"}
             </button>
+            {hasSubmittedAnswer && (
+              <p className="text-sm font-medium text-emerald-600">
+                {me.isHotSeat ? "Real answer received. Waiting on other players..." : "Bluff locked in!"}
+              </p>
+            )}
           </form>
         )}
 
