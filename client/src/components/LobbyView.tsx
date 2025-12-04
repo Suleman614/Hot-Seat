@@ -7,8 +7,18 @@ interface LobbyViewProps {
   onStartGame: () => Promise<void>;
 }
 
+const resolveMinPlayers = () => {
+  const raw = Number(import.meta.env.VITE_MIN_PLAYERS ?? "3");
+  if (Number.isFinite(raw) && raw >= 2) {
+    return Math.floor(raw);
+  }
+  return 3;
+};
+
 export function LobbyView({ room, me, onStartGame }: LobbyViewProps) {
-  const canStart = Boolean(me?.isHost) && room.players.filter((p) => p.connected).length >= 3;
+  const connectedCount = room.players.filter((p) => p.connected).length;
+  const minPlayers = resolveMinPlayers();
+  const canStart = Boolean(me?.isHost) && connectedCount >= minPlayers;
 
   const handleStart = () => {
     if (!canStart) return;
@@ -42,7 +52,7 @@ export function LobbyView({ room, me, onStartGame }: LobbyViewProps) {
               disabled={!canStart}
               className="rounded-2xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:bg-indigo-300"
             >
-              {canStart ? "Start Game" : "Need 3+ players"}
+              {canStart ? "Start Game" : `Need ${minPlayers}+ players`}
             </button>
           )}
         </div>

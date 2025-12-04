@@ -14,6 +14,14 @@ import {
 const ROOM_CODE_LENGTH = 4;
 const ROOM_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
+const MIN_PLAYERS = (() => {
+  const parsed = Number(process.env.MIN_PLAYERS);
+  if (Number.isFinite(parsed) && parsed >= 2) {
+    return Math.floor(parsed);
+  }
+  return 3;
+})();
+
 const DEFAULT_SETTINGS = {
   maxRounds: 5,
   secondsToAnswer: 45,
@@ -107,7 +115,7 @@ export class RoomManager {
       }
     }
 
-    if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < 2) {
+    if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < MIN_PLAYERS) {
       this.clearTimers(room);
       room.gameState = "finalSummary";
     }
@@ -137,8 +145,8 @@ export class RoomManager {
     if (!player.isHost) {
       throw new Error("Only the host can start");
     }
-    if (room.players.length < 2) {
-      throw new Error("Need at least 2 players");
+    if (room.players.length < MIN_PLAYERS) {
+      throw new Error(`Need at least ${MIN_PLAYERS} players`);
     }
     if (room.gameState !== "lobby" && room.gameState !== "finalSummary") {
       throw new Error("Game already started");
@@ -262,7 +270,7 @@ export class RoomManager {
   private advanceRound(room: Room): void {
     this.clearTimers(room);
     const connectedPlayers = room.players.filter((p) => p.connected);
-    if (connectedPlayers.length < 2) {
+    if (connectedPlayers.length < MIN_PLAYERS) {
       room.gameState = "finalSummary";
       this.emitRoom(room);
       return;

@@ -25,10 +25,11 @@ npm run dev
 
 Environment variables (optional):
 
-| Name            | Default             | Description                       |
-| --------------- | ------------------- | --------------------------------- |
-| `PORT`          | `4000`              | Socket/HTTP port                  |
-| `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origin for Socket.IO |
+| Name            | Default             | Description                                      |
+| --------------- | ------------------- | ------------------------------------------------ |
+| `PORT`          | `4000`              | Socket/HTTP port                                 |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origin for Socket.IO                |
+| `MIN_PLAYERS`   | `3`                 | Minimum connected players required to start (≥2) |
 
 ### 2. Frontend
 
@@ -42,7 +43,17 @@ Create a `.env` file inside `client` to point to the server if you change the ba
 
 ```
 VITE_SERVER_URL=http://localhost:4000
+VITE_MIN_PLAYERS=3
 ```
+
+### Quick two-device testing
+
+If you only have two devices available, lower the threshold temporarily:
+
+1. Backend: start/dev with `MIN_PLAYERS=2 npm run dev` (or set the env var in your hosting platform).
+2. Frontend: set `VITE_MIN_PLAYERS=2` in `client/.env` and rerun `npm run dev` (or redeploy).
+
+Leave both values at `3` for live party sessions so the full bluff/voting loop works as intended.
 
 ### 3. Production Build
 
