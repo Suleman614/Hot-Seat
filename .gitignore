@@ -1,0 +1,21 @@
+# Node
+node_modules/
+dist/
+*.log
+
+# Vite/React
+client/dist/
+client/.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Env files
+.env
+client/.env
+server/.env
+
+
