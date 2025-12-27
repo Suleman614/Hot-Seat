@@ -96,6 +96,13 @@ function App() {
     await endGame();
   }, [endGame]);
 
+  const resolveMusicTrack = () => {
+    if (room?.gameState === "finalSummary") {
+      return "/audio/Bleach%20Number%20one.mov";
+    }
+    return "/audio/wii-music.mp3";
+  };
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -103,12 +110,12 @@ function App() {
       audio.pause();
       return;
     }
-    const nextSrc = "/audio/wii-music.mp3";
+    const nextSrc = resolveMusicTrack();
     if (!audio.src.endsWith(nextSrc)) {
       audio.src = nextSrc;
     }
     audio.loop = true;
-    audio.volume = 0.15;
+    audio.volume = 0.2;
     void audio.play();
   }, [musicOn, room?.gameState]);
 
