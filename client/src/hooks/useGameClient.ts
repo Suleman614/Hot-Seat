@@ -57,7 +57,7 @@ export function useGameClient(): GameClient {
   const [socket] = useState<Socket>(() =>
     io(SERVER_URL, {
       autoConnect: false,
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
     }),
   );
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -85,11 +85,6 @@ export function useGameClient(): GameClient {
   );
 
   useEffect(() => {
-    if (!socket.connected) {
-      setConnectionStatus("connecting");
-      socket.connect();
-    }
-
     const handleRoomUpdate = (nextRoom: RoomState) => {
       setRoom(nextRoom);
       if (playerId) {
@@ -116,15 +111,32 @@ export function useGameClient(): GameClient {
       setHasAttemptedReconnect(false);
       setReconnectPending(true);
     };
+    const handleReconnectAttempt = () => {
+      setConnectionStatus("connecting");
+    };
+    const handleConnectError = () => {
+      setConnectionStatus("disconnected");
+    };
 
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
+    socket.on("reconnect_attempt", handleReconnectAttempt);
+    socket.on("connect_error", handleConnectError);
     socket.on("roomUpdated", handleRoomUpdate);
+
+    if (socket.connected) {
+      setConnectionStatus("connected");
+    } else {
+      setConnectionStatus("connecting");
+      socket.connect();
+    }
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdate);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
+      socket.off("reconnect_attempt", handleReconnectAttempt);
+      socket.off("connect_error", handleConnectError);
     };
   }, [socket, playerName, playerId]);
 

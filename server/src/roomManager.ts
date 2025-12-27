@@ -231,10 +231,14 @@ export class RoomManager {
     }
 
     // Auto advance if all submissions collected
-    const totalNeeded = room.players.filter((p) => p.connected).length;
+    const connectedPlayers = room.players.filter((p) => p.connected);
     const submissionCount = new Set(round.submissions.map((s) => s.playerId)).size;
-    const hotSeatSubmitted = round.submissions.some((s) => s.isRealAnswer);
-    if (hotSeatSubmitted && submissionCount === totalNeeded) {
+    const hotSeat = this.getHotSeat(room);
+    const hotSeatConnected = Boolean(hotSeat?.connected);
+    const hotSeatSubmitted = hotSeat
+      ? round.submissions.some((s) => s.playerId === hotSeat.id && s.isRealAnswer)
+      : false;
+    if (submissionCount >= connectedPlayers.length && (!hotSeatConnected || hotSeatSubmitted)) {
       this.startVotingPhase(room);
       return;
     }
