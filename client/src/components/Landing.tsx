@@ -50,7 +50,7 @@ export function Landing({
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 py-10">
       <div className="mb-8 text-center">
-        <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Party Game</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Aizen LLC presents</p>
         <h1 className="mt-2 text-4xl font-black text-slate-900 md:text-5xl">Hot Seat</h1>
         <p className="mt-3 text-base text-slate-600">
           Jump into the digital version of the classic party game. Bluff, guess, and laugh with your favorite people.
@@ -146,4 +146,3 @@ export function Landing({
     </div>
   );
 }
-
