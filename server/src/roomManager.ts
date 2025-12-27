@@ -436,7 +436,7 @@ export class RoomManager {
     room.players.forEach((p) => {
       p.isHotSeat = p.id === hotSeat?.id;
     });
-    const question = this.drawQuestion(room, hotSeat?.name);
+    const question = this.drawQuestion(room, hotSeat);
     return {
       id: uuid(),
       hotSeatPlayerId: hotSeat?.id ?? "",
@@ -456,22 +456,40 @@ export class RoomManager {
     return eligible[nextIndex];
   }
 
-  private drawQuestion(room: Room, hotSeatName?: string): string {
+  private drawQuestion(room: Room, hotSeat?: Player): string {
     if (room.questionDeck.length === 0) {
       room.questionDeck = getShuffledQuestions();
     }
     const question = room.questionDeck.pop() ?? "Mystery question";
-    return this.formatQuestion(question, hotSeatName);
+    return this.formatQuestion(question, hotSeat, room.players);
   }
 
-  private formatQuestion(question: string, hotSeatName?: string): string {
-    const name = hotSeatName?.trim();
-    if (!name) {
-      return question;
+  private formatQuestion(question: string, hotSeat?: Player, players: Player[] = []): string {
+    const name = hotSeat?.name.trim();
+    let formatted = question;
+    if (name) {
+      const possessive = /s$/i.test(name) ? `${name}'` : `${name}'s`;
+      const withName = formatted.split("{hotSeat}").join(name);
+      formatted = withName.split("{hotSeatPossessive}").join(possessive);
     }
-    const possessive = /s$/i.test(name) ? `${name}'` : `${name}'s`;
-    const withName = question.split("{hotSeat}").join(name);
-    return withName.split("{hotSeatPossessive}").join(possessive);
+
+    const randomPlayer = this.pickRandomOpponentName(players, hotSeat?.id);
+    if (randomPlayer) {
+      formatted = formatted.split("{randomPlayer}").join(randomPlayer);
+    } else {
+      formatted = formatted.split("{randomPlayer}").join("someone");
+    }
+
+    return formatted;
+  }
+
+  private pickRandomOpponentName(players: Player[], hotSeatId?: string): string | null {
+    const candidates = players.filter((player) => player.connected && player.id !== hotSeatId);
+    if (candidates.length === 0) {
+      return null;
+    }
+    const index = Math.floor(Math.random() * candidates.length);
+    return candidates[index]?.name ?? null;
   }
 
   private ensureAllSubmissions(room: Room, round: Round): void {
