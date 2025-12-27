@@ -322,6 +322,25 @@ export class RoomManager {
     this.emitRoom(room);
   }
 
+  endGame(socketId: string): void {
+    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
+    if (!room || !player) {
+      throw new Error("Player not found");
+    }
+    if (!player.isHost) {
+      throw new Error("Only the host can end the game");
+    }
+    if (room.gameState === "finalSummary") {
+      return;
+    }
+    this.clearTimers(room);
+    room.deadlines.answer = undefined;
+    room.deadlines.vote = undefined;
+    room.deadlines.reveal = undefined;
+    room.gameState = "finalSummary";
+    this.emitRoom(room);
+  }
+
   advanceRoundFromHost(socketId: string): void {
     const { room, player } = this.findPlayerBySocket(socketId) ?? {};
     if (!room || !player) {
@@ -535,6 +554,23 @@ export class RoomManager {
     });
 
     const hotSeat = this.getHotSeat(room);
+    const hotSeatSubmission = hotSeat ? submissionByPlayer.get(hotSeat.id) : undefined;
+    const hotSeatAnswer = hotSeatSubmission?.text.trim().toLowerCase() ?? "";
+
+    if (hotSeatAnswer) {
+      round.submissions.forEach((submission) => {
+        if (submission.isRealAnswer) {
+          return;
+        }
+        const normalized = submission.text.trim().toLowerCase();
+        if (normalized === hotSeatAnswer) {
+          const submissionOwner = room.players.find((p) => p.id === submission.playerId);
+          if (submissionOwner) {
+            submissionOwner.score += 3;
+          }
+        }
+      });
+    }
 
     round.votes.forEach((vote) => {
       const submission = submissionByPlayer.get(vote.submissionPlayerId);
@@ -546,9 +582,6 @@ export class RoomManager {
       if (submission.isRealAnswer) {
         voter.score += 2;
         voter.numCorrectGuesses += 1;
-        if (hotSeat) {
-          hotSeat.score += 1;
-        }
       } else {
         const submissionOwner = room.players.find((p) => p.id === submission.playerId);
         if (submissionOwner) {

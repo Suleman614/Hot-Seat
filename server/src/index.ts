@@ -142,6 +142,22 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("endGame", (callback) => {
+    try {
+      rooms.endGame(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to end game",
+        });
+      }
+    }
+  });
+
   socket.on("advanceRound", (callback) => {
     try {
       rooms.advanceRoundFromHost(socket.id);

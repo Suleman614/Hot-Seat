@@ -23,6 +23,7 @@ function App() {
     submitAnswer,
     submitVote,
     advanceRound,
+    endGame,
     updateSettings,
     leaveRoom,
     resetError,
@@ -89,6 +90,10 @@ function App() {
     await advanceRound();
   }, [advanceRound]);
 
+  const handleEndGame = useCallback(async () => {
+    await endGame();
+  }, [endGame]);
+
   if (!room) {
     return (
       <Landing
@@ -114,6 +119,15 @@ function App() {
           <StatusPill label="Status" value={connectionStatus} />
           <StatusPill label="Room" value={room.code} />
           <StatusPill label="Player" value={playerName || me?.name || "You"} />
+          {me?.isHost && room.gameState !== "lobby" && room.gameState !== "finalSummary" && (
+            <button
+              type="button"
+              onClick={() => handleEndGame()}
+              className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow hover:bg-rose-100"
+            >
+              End Game
+            </button>
+          )}
           <button
             type="button"
             onClick={() => leaveRoom()}
