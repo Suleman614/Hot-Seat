@@ -34,6 +34,28 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
     setSubmitting(false);
   }, [currentRound?.id]);
 
+  useEffect(() => {
+    if (room.gameState !== "collectingAnswers" || !me || hasSubmittedAnswer) {
+      return;
+    }
+    const deadline = room.timers.answerDeadline;
+    if (!deadline) {
+      return;
+    }
+    const delay = Math.max(0, deadline - Date.now() - 250);
+    const timeout = window.setTimeout(() => {
+      const trimmed = answer.trim();
+      if (!trimmed || hasSubmittedAnswer) {
+        return;
+      }
+      setSubmitting(true);
+      void onSubmitAnswer(trimmed).finally(() => {
+        setSubmitting(false);
+      });
+    }, delay);
+    return () => window.clearTimeout(timeout);
+  }, [room.gameState, room.timers.answerDeadline, me, hasSubmittedAnswer, answer, onSubmitAnswer]);
+
   if (!currentRound) {
     return (
       <div className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 py-10 text-center">
@@ -214,4 +236,3 @@ function phaseLabel(state: RoomState["gameState"]) {
       return "Hot Seat";
   }
 }
-

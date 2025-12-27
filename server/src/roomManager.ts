@@ -357,17 +357,7 @@ export class RoomManager {
   private startVotingPhase(room: Room): void {
     const round = this.currentRound(room);
     if (!round) return;
-    if (!round.submissions.some((s) => s.isRealAnswer)) {
-      // force placeholder
-      const hotSeat = this.getHotSeat(room);
-      if (hotSeat) {
-        round.submissions.push({
-          playerId: hotSeat.id,
-          text: "(No answer provided)",
-          isRealAnswer: true,
-        });
-      }
-    }
+    this.ensureAllSubmissions(room, round);
     room.gameState = "voting";
     round.status = "voting";
     this.clearTimer(room, "answer");
@@ -471,6 +461,33 @@ export class RoomManager {
     const possessive = /s$/i.test(name) ? `${name}'` : `${name}'s`;
     const withName = question.split("{hotSeat}").join(name);
     return withName.split("{hotSeatPossessive}").join(possessive);
+  }
+
+  private ensureAllSubmissions(room: Room, round: Round): void {
+    const connectedPlayers = room.players.filter((player) => player.connected);
+    const submissionsByPlayer = new Set(round.submissions.map((submission) => submission.playerId));
+
+    connectedPlayers.forEach((player) => {
+      if (submissionsByPlayer.has(player.id)) {
+        return;
+      }
+      round.submissions.push({
+        playerId: player.id,
+        text: player.isHotSeat ? "(No answer provided)" : "(No answer)",
+        isRealAnswer: player.isHotSeat,
+      });
+    });
+
+    if (!round.submissions.some((submission) => submission.isRealAnswer)) {
+      const hotSeat = this.getHotSeat(room);
+      if (hotSeat) {
+        round.submissions.push({
+          playerId: hotSeat.id,
+          text: "(No answer provided)",
+          isRealAnswer: true,
+        });
+      }
+    }
   }
 
   private currentRound(room: Room): Round | undefined {

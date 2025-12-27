@@ -142,11 +142,15 @@ export function useGameClient(): GameClient {
         saveSession({ playerId, playerName: resolvedName, roomCode: response.room.code });
         return;
       }
+      if (room) {
+        setLastError("Connection lost. Unable to rejoin the room.");
+        return;
+      }
       setRoom(null);
       setPlayerId(null);
       saveSession(null);
     });
-  }, [connectionStatus, reconnectPending, playerId, playerName, emitRequest]);
+  }, [connectionStatus, reconnectPending, playerId, playerName, emitRequest, room]);
 
   useEffect(() => {
     if (connectionStatus !== "connected" || room || hasAttemptedReconnect) {
