@@ -30,24 +30,32 @@ io.on("connection", (socket) => {
   socket.on("createRoom", (payload: { name: string }, callback) => {
     try {
       const roomState = rooms.createRoom(payload.name, socket);
-      callback?.({ ok: true, room: roomState });
+      if (typeof callback === "function") {
+        callback({ ok: true, room: roomState });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to create room",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to create room",
+        });
+      }
     }
   });
 
   socket.on("joinRoom", (payload: { name: string; roomCode: string }, callback) => {
     try {
       const roomState = rooms.joinRoom(payload.roomCode, payload.name, socket);
-      callback?.({ ok: true, room: roomState });
+      if (typeof callback === "function") {
+        callback({ ok: true, room: roomState });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to join room",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to join room",
+        });
+      }
     }
   });
 
@@ -57,66 +65,88 @@ io.on("connection", (socket) => {
       if (!roomState) {
         throw new Error("Player not found");
       }
-      callback?.({ ok: true, room: roomState });
+      if (typeof callback === "function") {
+        callback({ ok: true, room: roomState });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to reconnect",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to reconnect",
+        });
+      }
     }
   });
 
   socket.on("startGame", (callback) => {
     try {
       rooms.startGame(socket.id);
-      callback?.({ ok: true });
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to start game",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to start game",
+        });
+      }
     }
   });
 
   socket.on("submitAnswer", (payload: { text: string }, callback) => {
     try {
       rooms.submitAnswer(socket.id, payload.text);
-      callback?.({ ok: true });
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to submit answer",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to submit answer",
+        });
+      }
     }
   });
 
   socket.on("submitVote", (payload: { submissionPlayerId: string }, callback) => {
     try {
       rooms.submitVote(socket.id, payload.submissionPlayerId);
-      callback?.({ ok: true });
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to submit vote",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to submit vote",
+        });
+      }
     }
   });
 
   socket.on("updateSettings", (payload, callback) => {
     try {
       rooms.updateSettings(socket.id, payload);
-      callback?.({ ok: true });
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
     } catch (error) {
-      callback?.({
-        ok: false,
-        error: error instanceof Error ? error.message : "Failed to update settings",
-      });
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to update settings",
+        });
+      }
     }
   });
 
   socket.on("requestRoomState", (payload: { roomCode: string }, callback) => {
     const room = rooms.getRoomByCode(payload.roomCode);
-    callback?.({ ok: Boolean(room), room });
+    if (typeof callback === "function") {
+      callback({ ok: Boolean(room), room });
+    }
   });
 
   socket.on("leaveRoom", () => {
@@ -132,4 +162,3 @@ server.listen(PORT, () => {
   /* eslint-disable no-console */
   console.log(`Hot Seat server listening on port ${PORT}`);
 });
-

@@ -71,14 +71,21 @@ export function useGameClient(): GameClient {
   const emitRequest = useCallback(
     async (event: string, payload?: RequestPayload): Promise<ActionResult> => {
       return new Promise((resolve) => {
-        socket.emit(event, payload ?? {}, (response: ActionResult) => {
+        const handleResponse = (response: ActionResult) => {
           if (!response.ok) {
             setLastError(response.error ?? "Something went wrong");
           } else if (lastError) {
             setLastError(null);
           }
           resolve(response);
-        });
+        };
+
+        if (typeof payload === "undefined") {
+          socket.emit(event, handleResponse);
+          return;
+        }
+
+        socket.emit(event, payload, handleResponse);
       });
     },
     [socket, lastError],
