@@ -435,7 +435,7 @@ export class RoomManager {
     room.players.forEach((p) => {
       p.isHotSeat = p.id === hotSeat?.id;
     });
-    const question = this.drawQuestion(room);
+    const question = this.drawQuestion(room, hotSeat?.name);
     return {
       id: uuid(),
       hotSeatPlayerId: hotSeat?.id ?? "",
@@ -455,11 +455,22 @@ export class RoomManager {
     return eligible[nextIndex];
   }
 
-  private drawQuestion(room: Room): string {
+  private drawQuestion(room: Room, hotSeatName?: string): string {
     if (room.questionDeck.length === 0) {
       room.questionDeck = getShuffledQuestions();
     }
-    return room.questionDeck.pop() ?? "Mystery question";
+    const question = room.questionDeck.pop() ?? "Mystery question";
+    return this.formatQuestion(question, hotSeatName);
+  }
+
+  private formatQuestion(question: string, hotSeatName?: string): string {
+    const name = hotSeatName?.trim();
+    if (!name) {
+      return question;
+    }
+    const possessive = /s$/i.test(name) ? `${name}'` : `${name}'s`;
+    const withName = question.split("{hotSeat}").join(name);
+    return withName.split("{hotSeatPossessive}").join(possessive);
   }
 
   private currentRound(room: Room): Round | undefined {

@@ -66,6 +66,23 @@ export function useGameClient(): GameClient {
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected");
   const [lastError, setLastError] = useState<string | null>(null);
   const [hasAttemptedReconnect, setHasAttemptedReconnect] = useState(false);
+  const [reconnectPending, setReconnectPending] = useState(false);
+
+  const emitRequest = useCallback(
+    async (event: string, payload?: RequestPayload): Promise<ActionResult> => {
+      return new Promise((resolve) => {
+        socket.emit(event, payload ?? {}, (response: ActionResult) => {
+          if (!response.ok) {
+            setLastError(response.error ?? "Something went wrong");
+          } else if (lastError) {
+            setLastError(null);
+          }
+          resolve(response);
+        });
+      });
+    },
+    [socket, lastError],
+  );
 
   useEffect(() => {
     if (!socket.connected) {
@@ -97,6 +114,7 @@ export function useGameClient(): GameClient {
     const handleDisconnect = () => {
       setConnectionStatus("disconnected");
       setHasAttemptedReconnect(false);
+      setReconnectPending(true);
     };
 
     socket.on("connect", handleConnect);
@@ -110,21 +128,25 @@ export function useGameClient(): GameClient {
     };
   }, [socket, playerName, playerId]);
 
-  const emitRequest = useCallback(
-    async (event: string, payload?: RequestPayload): Promise<ActionResult> => {
-      return new Promise((resolve) => {
-        socket.emit(event, payload ?? {}, (response: ActionResult) => {
-          if (!response.ok) {
-            setLastError(response.error ?? "Something went wrong");
-          } else if (lastError) {
-            setLastError(null);
-          }
-          resolve(response);
-        });
-      });
-    },
-    [socket, lastError],
-  );
+  useEffect(() => {
+    if (connectionStatus !== "connected" || !reconnectPending || !playerId) {
+      return;
+    }
+    void emitRequest("reconnectPlayer", { playerId }).then((response) => {
+      setReconnectPending(false);
+      if (response.ok && response.room) {
+        setRoom(response.room);
+        const resolvedName =
+          response.room.players.find((player) => player.id === playerId)?.name ?? playerName;
+        setPlayerName(resolvedName);
+        saveSession({ playerId, playerName: resolvedName, roomCode: response.room.code });
+        return;
+      }
+      setRoom(null);
+      setPlayerId(null);
+      saveSession(null);
+    });
+  }, [connectionStatus, reconnectPending, playerId, playerName, emitRequest]);
 
   useEffect(() => {
     if (connectionStatus !== "connected" || room || hasAttemptedReconnect) {
