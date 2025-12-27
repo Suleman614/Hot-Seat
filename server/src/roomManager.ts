@@ -29,6 +29,13 @@ const DEFAULT_SETTINGS = {
   secondsToReveal: 10,
 };
 
+const SETTINGS_LIMITS = {
+  maxRounds: { min: 1, max: 10 },
+  secondsToAnswer: { min: 15, max: 120 },
+  secondsToVote: { min: 10, max: 90 },
+  secondsToReveal: { min: 5, max: 45 },
+};
+
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private heartbeat: NodeJS.Timeout;
@@ -121,6 +128,27 @@ export class RoomManager {
     if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < MIN_PLAYERS) {
       this.clearTimers(room);
       room.gameState = "finalSummary";
+      this.emitRoom(room);
+      return;
+    }
+
+    const currentRound = this.currentRound(room);
+    if (room.gameState === "collectingAnswers" && currentRound) {
+      const totalNeeded = room.players.filter((p) => p.connected).length;
+      const submissionCount = new Set(currentRound.submissions.map((s) => s.playerId)).size;
+      const hotSeatSubmitted = currentRound.submissions.some((s) => s.isRealAnswer);
+      if (hotSeatSubmitted && submissionCount >= totalNeeded) {
+        this.startVotingPhase(room);
+        return;
+      }
+    }
+
+    if (room.gameState === "voting" && currentRound) {
+      const votingPlayers = room.players.filter((p) => p.connected && !p.isHotSeat).length;
+      if (currentRound.votes.length >= votingPlayers) {
+        this.revealResults(room);
+        return;
+      }
     }
 
     this.emitRoom(room);
@@ -258,9 +286,34 @@ export class RoomManager {
     if (!player.isHost) {
       throw new Error("Only host can update settings");
     }
+    if (room.gameState !== "lobby" && room.gameState !== "finalSummary") {
+      throw new Error("Settings can only be updated before a game starts");
+    }
     room.settings = {
-      ...room.settings,
-      ...settings,
+      maxRounds: this.normalizeSetting(
+        settings.maxRounds,
+        room.settings.maxRounds,
+        SETTINGS_LIMITS.maxRounds.min,
+        SETTINGS_LIMITS.maxRounds.max,
+      ),
+      secondsToAnswer: this.normalizeSetting(
+        settings.secondsToAnswer,
+        room.settings.secondsToAnswer,
+        SETTINGS_LIMITS.secondsToAnswer.min,
+        SETTINGS_LIMITS.secondsToAnswer.max,
+      ),
+      secondsToVote: this.normalizeSetting(
+        settings.secondsToVote,
+        room.settings.secondsToVote,
+        SETTINGS_LIMITS.secondsToVote.min,
+        SETTINGS_LIMITS.secondsToVote.max,
+      ),
+      secondsToReveal: this.normalizeSetting(
+        settings.secondsToReveal,
+        room.settings.secondsToReveal,
+        SETTINGS_LIMITS.secondsToReveal.min,
+        SETTINGS_LIMITS.secondsToReveal.max,
+      ),
     };
     this.emitRoom(room);
   }
@@ -468,6 +521,13 @@ export class RoomManager {
     }
   }
 
+  private normalizeSetting(value: unknown, fallback: number, min: number, max: number): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return fallback;
+    }
+    return Math.min(max, Math.max(min, Math.floor(value)));
+  }
+
   private buildPlayer(name: string, roomCode: string, socketId: string, isHost: boolean): Player {
     return {
       id: uuid(),
@@ -541,5 +601,3 @@ export class RoomManager {
     return code;
   }
 }
-
-

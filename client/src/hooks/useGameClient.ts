@@ -3,8 +3,39 @@ import { io, Socket } from "socket.io-client";
 import type { ActionResult, RoomState } from "../types";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
+const STORAGE_KEY = "hotseat-session";
 
 type RequestPayload = Record<string, unknown>;
+
+type StoredSession = {
+  playerId: string;
+  playerName: string;
+  roomCode: string;
+};
+
+const loadSession = (): StoredSession | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    if (!parsed.playerId || !parsed.playerName || !parsed.roomCode) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const saveSession = (session: StoredSession | null) => {
+  if (typeof window === "undefined") return;
+  if (!session) {
+    window.localStorage.removeItem(STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+};
 
 export interface GameClient {
   room: RoomState | null;
@@ -34,6 +65,7 @@ export function useGameClient(): GameClient {
   const [playerName, setPlayerName] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected");
   const [lastError, setLastError] = useState<string | null>(null);
+  const [hasAttemptedReconnect, setHasAttemptedReconnect] = useState(false);
 
   useEffect(() => {
     if (!socket.connected) {
@@ -43,6 +75,13 @@ export function useGameClient(): GameClient {
 
     const handleRoomUpdate = (nextRoom: RoomState) => {
       setRoom(nextRoom);
+      if (playerId) {
+        const me = nextRoom.players.find((p) => p.id === playerId);
+        if (me) {
+          setPlayerName(me.name);
+          return;
+        }
+      }
       if (playerName) {
         const me = nextRoom.players.find((p) => p.name === playerName);
         if (me) {
@@ -51,16 +90,25 @@ export function useGameClient(): GameClient {
       }
     };
 
-    socket.on("connect", () => setConnectionStatus("connected"));
-    socket.on("disconnect", () => setConnectionStatus("disconnected"));
+    const handleConnect = () => {
+      setConnectionStatus("connected");
+      setHasAttemptedReconnect(false);
+    };
+    const handleDisconnect = () => {
+      setConnectionStatus("disconnected");
+      setHasAttemptedReconnect(false);
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
     socket.on("roomUpdated", handleRoomUpdate);
 
     return () => {
       socket.off("roomUpdated", handleRoomUpdate);
-      socket.off("connect");
-      socket.off("disconnect");
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
     };
-  }, [socket, playerName]);
+  }, [socket, playerName, playerId]);
 
   const emitRequest = useCallback(
     async (event: string, payload?: RequestPayload): Promise<ActionResult> => {
@@ -68,13 +116,36 @@ export function useGameClient(): GameClient {
         socket.emit(event, payload ?? {}, (response: ActionResult) => {
           if (!response.ok) {
             setLastError(response.error ?? "Something went wrong");
+          } else if (lastError) {
+            setLastError(null);
           }
           resolve(response);
         });
       });
     },
-    [socket],
+    [socket, lastError],
   );
+
+  useEffect(() => {
+    if (connectionStatus !== "connected" || room || hasAttemptedReconnect) {
+      return;
+    }
+    const session = loadSession();
+    if (!session) {
+      return;
+    }
+    setHasAttemptedReconnect(true);
+    setPlayerName(session.playerName);
+    void emitRequest("reconnectPlayer", { playerId: session.playerId }).then((response) => {
+      if (response.ok && response.room) {
+        setRoom(response.room);
+        setPlayerId(session.playerId);
+        saveSession({ ...session, roomCode: response.room.code });
+        return;
+      }
+      saveSession(null);
+    });
+  }, [connectionStatus, room, hasAttemptedReconnect, emitRequest]);
 
   const identifyPlayer = useCallback(
     (nextRoom: RoomState | null, name: string): string | null => {
@@ -91,7 +162,11 @@ export function useGameClient(): GameClient {
       const response = await emitRequest("createRoom", { name });
       if (response.ok && response.room) {
         setRoom(response.room);
-        setPlayerId(identifyPlayer(response.room, name));
+        const nextPlayerId = identifyPlayer(response.room, name);
+        setPlayerId(nextPlayerId);
+        if (nextPlayerId) {
+          saveSession({ playerId: nextPlayerId, playerName: name, roomCode: response.room.code });
+        }
       }
       return response;
     },
@@ -104,7 +179,11 @@ export function useGameClient(): GameClient {
       const response = await emitRequest("joinRoom", { roomCode, name });
       if (response.ok && response.room) {
         setRoom(response.room);
-        setPlayerId(identifyPlayer(response.room, name));
+        const nextPlayerId = identifyPlayer(response.room, name);
+        setPlayerId(nextPlayerId);
+        if (nextPlayerId) {
+          saveSession({ playerId: nextPlayerId, playerName: name, roomCode: response.room.code });
+        }
       }
       return response;
     },
@@ -131,6 +210,7 @@ export function useGameClient(): GameClient {
     }
     setRoom(null);
     setPlayerId(null);
+    saveSession(null);
   }, [room, socket]);
 
   const resetError = useCallback(() => setLastError(null), []);
@@ -168,5 +248,3 @@ export function useGameClient(): GameClient {
     ],
   );
 }
-
-

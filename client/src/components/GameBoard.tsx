@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Countdown } from "./Countdown";
 import type { Player, RoomState } from "../types";
@@ -28,6 +28,11 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
     });
     return map;
   }, [currentRound]);
+
+  useEffect(() => {
+    setAnswer("");
+    setSubmitting(false);
+  }, [currentRound?.id]);
 
   if (!currentRound) {
     return (
@@ -209,5 +214,4 @@ function phaseLabel(state: RoomState["gameState"]) {
       return "Hot Seat";
   }
 }
-
 

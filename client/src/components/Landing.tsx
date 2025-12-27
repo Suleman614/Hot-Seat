@@ -13,6 +13,14 @@ interface LandingProps {
   error?: string | null;
 }
 
+const resolveMinPlayers = () => {
+  const raw = Number(import.meta.env.VITE_MIN_PLAYERS ?? "3");
+  if (Number.isFinite(raw) && raw >= 2) {
+    return Math.floor(raw);
+  }
+  return 3;
+};
+
 export function Landing({
   mode,
   onModeChange,
@@ -25,6 +33,7 @@ export function Landing({
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
+  const minPlayers = resolveMinPlayers();
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -113,7 +122,7 @@ export function Landing({
                 placeholder="ABCD"
                 value={joinCode}
                 onChange={(event) => setJoinCode(event.target.value)}
-                maxLength={6}
+                maxLength={4}
                 required
               />
             </label>
@@ -131,11 +140,10 @@ export function Landing({
 
         <div className="mt-6 flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
           <span>Connection: {connectionStatus}</span>
-          <span>Need at least 3 players to start</span>
+          <span>Need at least {minPlayers} players to start</span>
         </div>
       </div>
     </div>
   );
 }
-
 

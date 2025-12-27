@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
 import type { Player, RoomState } from "../types";
 import { PlayerList } from "./PlayerList";
 
@@ -5,6 +7,7 @@ interface LobbyViewProps {
   room: RoomState;
   me: Player | null;
   onStartGame: () => Promise<void>;
+  onUpdateSettings: (settings: Partial<RoomState["settings"]>) => Promise<void>;
 }
 
 const resolveMinPlayers = () => {
@@ -15,14 +18,48 @@ const resolveMinPlayers = () => {
   return 3;
 };
 
-export function LobbyView({ room, me, onStartGame }: LobbyViewProps) {
+const SETTINGS_LIMITS = {
+  maxRounds: { min: 1, max: 10, suffix: "rounds" },
+  secondsToAnswer: { min: 15, max: 120, suffix: "seconds" },
+  secondsToVote: { min: 10, max: 90, suffix: "seconds" },
+  secondsToReveal: { min: 5, max: 45, suffix: "seconds" },
+};
+
+export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyViewProps) {
   const connectedCount = room.players.filter((p) => p.connected).length;
   const minPlayers = resolveMinPlayers();
   const canStart = Boolean(me?.isHost) && connectedCount >= minPlayers;
+  const [draftSettings, setDraftSettings] = useState(room.settings);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraftSettings(room.settings);
+  }, [room.settings]);
+
+  const hasChanges =
+    draftSettings.maxRounds !== room.settings.maxRounds ||
+    draftSettings.secondsToAnswer !== room.settings.secondsToAnswer ||
+    draftSettings.secondsToVote !== room.settings.secondsToVote ||
+    draftSettings.secondsToReveal !== room.settings.secondsToReveal;
 
   const handleStart = () => {
     if (!canStart) return;
     void onStartGame();
+  };
+
+  const handleSaveSettings = async () => {
+    if (!me?.isHost || !hasChanges) return;
+    setSaving(true);
+    await onUpdateSettings(draftSettings);
+    setSaving(false);
+  };
+
+  const handleSettingChange = (key: keyof RoomState["settings"]) => (event: ChangeEvent<HTMLInputElement>) => {
+    const value = Number(event.target.value);
+    setDraftSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
   return (
@@ -58,11 +95,57 @@ export function LobbyView({ room, me, onStartGame }: LobbyViewProps) {
         </div>
 
         <div className="mt-6 rounded-3xl border border-slate-100 bg-slate-50/80 p-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <SettingCard label="Rounds" value={room.settings.maxRounds.toString()} />
-            <SettingCard label="Answer time" value={`${room.settings.secondsToAnswer}s`} />
-            <SettingCard label="Voting time" value={`${room.settings.secondsToVote}s`} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SettingField
+              label="Rounds"
+              value={draftSettings.maxRounds}
+              min={SETTINGS_LIMITS.maxRounds.min}
+              max={SETTINGS_LIMITS.maxRounds.max}
+              suffix={SETTINGS_LIMITS.maxRounds.suffix}
+              editable={Boolean(me?.isHost)}
+              onChange={handleSettingChange("maxRounds")}
+            />
+            <SettingField
+              label="Answer time"
+              value={draftSettings.secondsToAnswer}
+              min={SETTINGS_LIMITS.secondsToAnswer.min}
+              max={SETTINGS_LIMITS.secondsToAnswer.max}
+              suffix={SETTINGS_LIMITS.secondsToAnswer.suffix}
+              editable={Boolean(me?.isHost)}
+              onChange={handleSettingChange("secondsToAnswer")}
+            />
+            <SettingField
+              label="Voting time"
+              value={draftSettings.secondsToVote}
+              min={SETTINGS_LIMITS.secondsToVote.min}
+              max={SETTINGS_LIMITS.secondsToVote.max}
+              suffix={SETTINGS_LIMITS.secondsToVote.suffix}
+              editable={Boolean(me?.isHost)}
+              onChange={handleSettingChange("secondsToVote")}
+            />
+            <SettingField
+              label="Reveal time"
+              value={draftSettings.secondsToReveal}
+              min={SETTINGS_LIMITS.secondsToReveal.min}
+              max={SETTINGS_LIMITS.secondsToReveal.max}
+              suffix={SETTINGS_LIMITS.secondsToReveal.suffix}
+              editable={Boolean(me?.isHost)}
+              onChange={handleSettingChange("secondsToReveal")}
+            />
           </div>
+          {me?.isHost && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <p className="text-slate-500">{hasChanges ? "Unsaved changes" : "Settings synced"}</p>
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={!hasChanges || saving}
+                className="rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:bg-indigo-300"
+              >
+                {saving ? "Saving..." : "Save settings"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex-1">
@@ -72,13 +155,45 @@ export function LobbyView({ room, me, onStartGame }: LobbyViewProps) {
   );
 }
 
-function SettingCard({ label, value }: { label: string; value: string }) {
+function SettingField({
+  label,
+  value,
+  min,
+  max,
+  suffix,
+  editable,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  suffix: string;
+  editable: boolean;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
   return (
     <div className="rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-center shadow">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="text-2xl font-black text-slate-900">{value}</p>
+      {editable ? (
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={1}
+            value={value}
+            onChange={onChange}
+            className="w-20 rounded-xl border border-slate-200 bg-white px-2 py-1 text-center text-base font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{suffix}</span>
+        </div>
+      ) : (
+        <p className="text-2xl font-black text-slate-900">
+          {value}
+          {suffix === "seconds" ? "s" : ""}
+        </p>
+      )}
     </div>
   );
 }
-
-

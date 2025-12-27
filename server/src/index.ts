@@ -51,6 +51,21 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("reconnectPlayer", (payload: { playerId: string }, callback) => {
+    try {
+      const roomState = rooms.reconnectPlayer(payload.playerId, socket);
+      if (!roomState) {
+        throw new Error("Player not found");
+      }
+      callback?.({ ok: true, room: roomState });
+    } catch (error) {
+      callback?.({
+        ok: false,
+        error: error instanceof Error ? error.message : "Failed to reconnect",
+      });
+    }
+  });
+
   socket.on("startGame", (callback) => {
     try {
       rooms.startGame(socket.id);
@@ -117,5 +132,4 @@ server.listen(PORT, () => {
   /* eslint-disable no-console */
   console.log(`Hot Seat server listening on port ${PORT}`);
 });
-
 

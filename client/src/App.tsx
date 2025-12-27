@@ -22,6 +22,7 @@ function App() {
     startGame,
     submitAnswer,
     submitVote,
+    updateSettings,
     leaveRoom,
     resetError,
   } = useGameClient();
@@ -61,6 +62,13 @@ function App() {
   const handleStartGame = useCallback(async () => {
     await startGame();
   }, [startGame]);
+
+  const handleUpdateSettings = useCallback(
+    async (settings: Parameters<typeof updateSettings>[0]) => {
+      await updateSettings(settings);
+    },
+    [updateSettings],
+  );
 
   const handleSubmitAnswer = useCallback(
     async (text: string) => {
@@ -111,8 +119,28 @@ function App() {
         </div>
       </header>
 
+      {lastError && (
+        <div className="mx-6 mb-4 rounded-2xl bg-rose-100 px-4 py-3 text-sm font-medium text-rose-700">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{lastError}</span>
+            <button
+              type="button"
+              onClick={() => resetError()}
+              className="rounded-full bg-rose-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {room.gameState === "lobby" && (
-        <LobbyView room={room} me={me} onStartGame={() => handleStartGame()} />
+        <LobbyView
+          room={room}
+          me={me}
+          onStartGame={() => handleStartGame()}
+          onUpdateSettings={handleUpdateSettings}
+        />
       )}
 
       {["collectingAnswers", "voting", "showingResults"].includes(room.gameState) && (
