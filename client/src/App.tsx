@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Landing } from "./components/Landing";
 import { LobbyView } from "./components/LobbyView";
 import { GameBoard } from "./components/GameBoard";
@@ -10,6 +10,8 @@ import type { Player } from "./types";
 function App() {
   const [landingMode, setLandingMode] = useState<LandingMode>("create");
   const [loading, setLoading] = useState(false);
+  const [musicOn, setMusicOn] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const {
     room,
@@ -94,17 +96,47 @@ function App() {
     await endGame();
   }, [endGame]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!musicOn) {
+      audio.pause();
+      return;
+    }
+    const nextSrc = "/audio/wii-music.mp3";
+    if (!audio.src.endsWith(nextSrc)) {
+      audio.src = nextSrc;
+    }
+    audio.loop = true;
+    audio.volume = 0.15;
+    void audio.play();
+  }, [musicOn, room?.gameState]);
+
+  const musicButton = (
+    <button
+      type="button"
+      onClick={() => setMusicOn((prev) => !prev)}
+      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow hover:bg-slate-50"
+    >
+      {musicOn ? "Music: On" : "Music: Off"}
+    </button>
+  );
+
   if (!room) {
     return (
-      <Landing
-        mode={landingMode}
-        onModeChange={handleModeChange}
-        onCreate={handleCreate}
-        onJoin={handleJoin}
-        loading={loading}
-        connectionStatus={connectionStatus}
-        error={lastError}
-      />
+      <div className="relative min-h-screen">
+        <div className="absolute right-6 top-4 z-10">{musicButton}</div>
+        <Landing
+          mode={landingMode}
+          onModeChange={handleModeChange}
+          onCreate={handleCreate}
+          onJoin={handleJoin}
+          loading={loading}
+          connectionStatus={connectionStatus}
+          error={lastError}
+        />
+        <audio ref={audioRef} preload="auto" />
+      </div>
     );
   }
 
@@ -119,6 +151,7 @@ function App() {
           <StatusPill label="Status" value={connectionStatus} />
           <StatusPill label="Room" value={room.code} />
           <StatusPill label="Player" value={playerName || me?.name || "You"} />
+          {musicButton}
           {me?.isHost && room.gameState !== "lobby" && room.gameState !== "finalSummary" && (
             <button
               type="button"
@@ -175,6 +208,7 @@ function App() {
       {room.gameState === "finalSummary" && (
         <FinalSummary room={room} me={me} onPlayAgain={() => handleStartGame()} />
       )}
+      <audio ref={audioRef} preload="auto" />
     </div>
   );
 }
