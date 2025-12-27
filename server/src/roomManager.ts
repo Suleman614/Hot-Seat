@@ -322,6 +322,22 @@ export class RoomManager {
     this.emitRoom(room);
   }
 
+  advanceRoundFromHost(socketId: string): void {
+    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
+    if (!room || !player) {
+      throw new Error("Player not found");
+    }
+    if (!player.isHost) {
+      throw new Error("Only the host can advance");
+    }
+    if (room.gameState !== "showingResults") {
+      throw new Error("Not ready to advance");
+    }
+    this.clearTimer(room, "reveal");
+    room.deadlines.reveal = undefined;
+    this.advanceRound(room);
+  }
+
   getRoomByCode(code: string): OutgoingRoomState | null {
     const room = this.rooms.get(code.toUpperCase());
     return room ? this.toPublicRoom(room) : null;
@@ -382,21 +398,12 @@ export class RoomManager {
     if (!round) return;
     this.clearTimer(room, "answer");
     this.clearTimer(room, "vote");
+    this.clearTimer(room, "reveal");
 
     room.gameState = "showingResults";
     round.status = "showingResults";
     this.scoreRound(room, round);
-    room.deadlines.reveal = Date.now() + room.settings.secondsToReveal * 1000;
-
-    room.timers.reveal = setTimeout(() => {
-      this.clearTimer(room, "reveal");
-      if (room.rounds.length >= room.settings.maxRounds) {
-        room.gameState = "finalSummary";
-        this.emitRoom(room);
-      } else {
-        this.advanceRound(room);
-      }
-    }, room.settings.secondsToReveal * 1000);
+    room.deadlines.reveal = undefined;
 
     this.emitRoom(room);
   }

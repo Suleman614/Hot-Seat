@@ -22,6 +22,7 @@ function App() {
     startGame,
     submitAnswer,
     submitVote,
+    advanceRound,
     updateSettings,
     leaveRoom,
     resetError,
@@ -84,6 +85,10 @@ function App() {
     [submitVote],
   );
 
+  const handleAdvanceRound = useCallback(async () => {
+    await advanceRound();
+  }, [advanceRound]);
+
   if (!room) {
     return (
       <Landing
@@ -144,7 +149,13 @@ function App() {
       )}
 
       {["collectingAnswers", "voting", "showingResults"].includes(room.gameState) && (
-        <GameBoard room={room} me={me} onSubmitAnswer={handleSubmitAnswer} onSubmitVote={handleSubmitVote} />
+        <GameBoard
+          room={room}
+          me={me}
+          onSubmitAnswer={handleSubmitAnswer}
+          onSubmitVote={handleSubmitVote}
+          onAdvanceRound={handleAdvanceRound}
+        />
       )}
 
       {room.gameState === "finalSummary" && (

@@ -142,6 +142,22 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("advanceRound", (callback) => {
+    try {
+      rooms.advanceRoundFromHost(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to advance round",
+        });
+      }
+    }
+  });
+
   socket.on("requestRoomState", (payload: { roomCode: string }, callback) => {
     const room = rooms.getRoomByCode(payload.roomCode);
     if (typeof callback === "function") {
@@ -151,6 +167,12 @@ io.on("connection", (socket) => {
 
   socket.on("leaveRoom", () => {
     rooms.leaveRoom(socket.id);
+    const roomsToLeave = Array.from(socket.rooms);
+    roomsToLeave.forEach((roomId) => {
+      if (roomId !== socket.id) {
+        socket.leave(roomId);
+      }
+    });
   });
 
   socket.on("disconnect", () => {

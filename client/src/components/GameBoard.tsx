@@ -8,9 +8,10 @@ interface GameBoardProps {
   me: Player | null;
   onSubmitAnswer: (text: string) => Promise<void>;
   onSubmitVote: (submissionPlayerId: string) => Promise<void>;
+  onAdvanceRound: () => Promise<void>;
 }
 
-export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardProps) {
+export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRound }: GameBoardProps) {
   const [answer, setAnswer] = useState("");
   const currentRound = room.rounds[room.currentRoundIndex];
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +29,18 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
     });
     return map;
   }, [currentRound]);
+
+  const votersBySubmission = useMemo(() => {
+    if (!currentRound) return new Map<string, string[]>();
+    const map = new Map<string, string[]>();
+    currentRound.votes.forEach((vote) => {
+      const voterName = room.players.find((player) => player.id === vote.voterId)?.name ?? "Unknown";
+      const list = map.get(vote.submissionPlayerId) ?? [];
+      list.push(voterName);
+      map.set(vote.submissionPlayerId, list);
+    });
+    return map;
+  }, [currentRound, room.players]);
 
   useEffect(() => {
     setAnswer("");
@@ -81,7 +94,15 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
     setSubmitting(false);
   };
 
+  const handleAdvanceRound = async () => {
+    if (!me?.isHost || submitting) return;
+    setSubmitting(true);
+    await onAdvanceRound();
+    setSubmitting(false);
+  };
+
   const phase = room.gameState;
+  const isFinalRound = room.rounds.length >= room.settings.maxRounds;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-10 md:flex-row">
@@ -179,6 +200,7 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
                 const submissionOwner = room.players.find((p) => p.id === submission.playerId);
                 const votes = submissionMap.get(submission.playerId) ?? 0;
                 const isReal = submission.isRealAnswer;
+                const voters = votersBySubmission.get(submission.playerId) ?? [];
                 return (
                   <div
                     key={submission.playerId}
@@ -189,10 +211,27 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote }: GameBoardP
                       {isReal ? "Real answer" : "Fake answer"} by {submissionOwner?.name ?? "???"} · {votes} vote
                       {votes === 1 ? "" : "s"}
                     </p>
+                    <p className="text-xs text-slate-500">
+                      {voters.length > 0 ? `Voted by ${voters.join(", ")}` : "No votes"}
+                    </p>
                   </div>
                 );
               })}
             </div>
+            {me?.isHost ? (
+              <button
+                type="button"
+                onClick={handleAdvanceRound}
+                disabled={submitting}
+                className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:bg-indigo-300"
+              >
+                {isFinalRound ? "Show final summary" : "Next question"}
+              </button>
+            ) : (
+              <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-600">
+                Waiting for the host to continue...
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -48,6 +48,7 @@ export interface GameClient {
   startGame: () => Promise<ActionResult>;
   submitAnswer: (text: string) => Promise<ActionResult>;
   submitVote: (submissionPlayerId: string) => Promise<ActionResult>;
+  advanceRound: () => Promise<ActionResult>;
   updateSettings: (settings: Partial<RoomState["settings"]>) => Promise<ActionResult>;
   leaveRoom: () => void;
   resetError: () => void;
@@ -244,6 +245,7 @@ export function useGameClient(): GameClient {
     async (submissionPlayerId: string) => emitRequest("submitVote", { submissionPlayerId }),
     [emitRequest],
   );
+  const advanceRound = useCallback(async () => emitRequest("advanceRound"), [emitRequest]);
   const updateSettings = useCallback(
     async (settings: Partial<RoomState["settings"]>) => emitRequest("updateSettings", settings),
     [emitRequest],
@@ -272,6 +274,7 @@ export function useGameClient(): GameClient {
       startGame,
       submitAnswer,
       submitVote,
+      advanceRound,
       updateSettings,
       leaveRoom,
       resetError,
@@ -287,6 +290,7 @@ export function useGameClient(): GameClient {
       startGame,
       submitAnswer,
       submitVote,
+      advanceRound,
       updateSettings,
       leaveRoom,
       resetError,
