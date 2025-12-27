@@ -48,7 +48,10 @@ export function Landing({
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 py-10">
+    <div className="relative mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 py-10">
+      <div className="absolute left-6 top-6 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow">
+        Aizen LLC
+      </div>
       <div className="mb-8 text-center">
         <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Aizen LLC presents</p>
         <h1 className="mt-2 text-4xl font-black text-slate-900 md:text-5xl">Hot Seat</h1>
