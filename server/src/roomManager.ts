@@ -32,7 +32,7 @@ const REJOIN_GRACE_MS = (() => {
 
 const DEFAULT_SETTINGS = {
   maxRounds: 5,
-  secondsToAnswer: 45,
+  secondsToAnswer: 60,
   secondsToVote: 30,
   secondsToReveal: 10,
 };
@@ -558,8 +558,9 @@ export class RoomManager {
     let formatted = question;
     if (name) {
       const possessive = /s$/i.test(name) ? `${name}'` : `${name}'s`;
-      const withName = formatted.split("{hotSeat}").join(name);
-      formatted = withName.split("{hotSeatPossessive}").join(possessive);
+    const withName = formatted.split("{hotSeat}").join(name);
+    const withPossessive = withName.split("{hotSeatPossessive}").join(possessive);
+    formatted = withPossessive.split("{hotSeatPossesive}").join(possessive);
     }
 
     const randomPlayer = this.pickRandomOpponentName(players, hotSeat?.id);
