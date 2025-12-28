@@ -14,7 +14,6 @@ export interface Player {
   score: number;
   numPeopleTricked: number;
   numCorrectGuesses: number;
-  isHost: boolean;
   isHotSeat: boolean;
   connected: boolean;
 }
@@ -60,6 +59,8 @@ export interface Round {
 export interface Room {
   code: string;
   hostId: string;
+  hostName: string;
+  hostSocketId?: string;
   players: Player[];
   gameState: GameState;
   currentRoundIndex: number;
@@ -79,11 +80,10 @@ export interface Room {
   };
 }
 
-export interface OutgoingRoomState extends Omit<Room, "timers"> {
+export interface OutgoingRoomState extends Omit<Room, "timers" | "hostSocketId"> {
   timers: {
     answerDeadline?: number;
     voteDeadline?: number;
     revealDeadline?: number;
   };
 }
-

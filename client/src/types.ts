@@ -13,7 +13,6 @@ export interface Player {
   score: number;
   numPeopleTricked: number;
   numCorrectGuesses: number;
-  isHost: boolean;
   isHotSeat: boolean;
   connected: boolean;
 }
@@ -50,6 +49,7 @@ export interface Round {
 export interface RoomState {
   code: string;
   hostId: string;
+  hostName: string;
   players: Player[];
   gameState: GameState;
   currentRoundIndex: number;
@@ -75,4 +75,3 @@ export interface ActionResult<T = unknown> {
   error?: string;
   data?: T;
 }
-

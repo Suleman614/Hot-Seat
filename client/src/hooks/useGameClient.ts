@@ -4,12 +4,19 @@ import type { ActionResult, RoomState, Submission } from "../types";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 const STORAGE_KEY = "hotseat-session";
+const HOST_STORAGE_KEY = "hotseat-host";
 
 type RequestPayload = Record<string, unknown>;
 
 type StoredSession = {
   playerId: string;
   playerName: string;
+  roomCode: string;
+};
+
+type StoredHost = {
+  hostId: string;
+  hostName: string;
   roomCode: string;
 };
 
@@ -43,6 +50,30 @@ const saveSession = (session: StoredSession | null) => {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 };
 
+const loadHostSession = (): StoredHost | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(HOST_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredHost;
+    if (!parsed.hostId || !parsed.hostName || !parsed.roomCode) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const saveHostSession = (session: StoredHost | null) => {
+  if (typeof window === "undefined") return;
+  if (!session) {
+    window.localStorage.removeItem(HOST_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(HOST_STORAGE_KEY, JSON.stringify(session));
+};
+
 export interface GameClient {
   room: RoomState | null;
   playerId: string | null;
@@ -51,6 +82,7 @@ export interface GameClient {
   lastError: string | null;
   reviewState: ReviewState | null;
   showNextAnswer: boolean;
+  isHost: boolean;
   createRoom: (name: string) => Promise<ActionResult>;
   joinRoom: (roomCode: string, name: string) => Promise<ActionResult>;
   startGame: () => Promise<ActionResult>;
@@ -79,6 +111,7 @@ export function useGameClient(): GameClient {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [hostId, setHostId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected");
   const [lastError, setLastError] = useState<string | null>(null);
   const [hasAttemptedReconnect, setHasAttemptedReconnect] = useState(false);
@@ -112,6 +145,9 @@ export function useGameClient(): GameClient {
   useEffect(() => {
     const handleRoomUpdate = (nextRoom: RoomState) => {
       setRoom(nextRoom);
+      if (hostId && nextRoom.hostId === hostId) {
+        return;
+      }
       if (playerId) {
         const me = nextRoom.players.find((p) => p.id === playerId);
         if (me) {
@@ -163,7 +199,7 @@ export function useGameClient(): GameClient {
       socket.off("reconnect_attempt", handleReconnectAttempt);
       socket.off("connect_error", handleConnectError);
     };
-  }, [socket, playerName, playerId]);
+  }, [socket, playerName, playerId, hostId]);
 
   useEffect(() => {
     const handleReviewStart = (payload: { prompt: string; totalAnswers: number }) => {
@@ -205,7 +241,28 @@ export function useGameClient(): GameClient {
   }, [room?.gameState]);
 
   useEffect(() => {
-    if (connectionStatus !== "connected" || !reconnectPending || !playerId) {
+    if (connectionStatus !== "connected" || !reconnectPending) {
+      return;
+    }
+    if (hostId) {
+      void emitRequest("reconnectHost", { hostId }).then((response) => {
+        setReconnectPending(false);
+        if (response.ok && response.room) {
+          setRoom(response.room);
+          saveHostSession({ hostId, hostName: playerName, roomCode: response.room.code });
+          return;
+        }
+        if (room) {
+          setLastError("Connection lost. Unable to rejoin the room.");
+          return;
+        }
+        setRoom(null);
+        setHostId(null);
+        saveHostSession(null);
+      });
+      return;
+    }
+    if (!playerId) {
       return;
     }
     void emitRequest("reconnectPlayer", { playerId }).then((response) => {
@@ -226,10 +283,26 @@ export function useGameClient(): GameClient {
       setPlayerId(null);
       saveSession(null);
     });
-  }, [connectionStatus, reconnectPending, playerId, playerName, emitRequest, room]);
+  }, [connectionStatus, reconnectPending, playerId, playerName, emitRequest, room, hostId]);
 
   useEffect(() => {
     if (connectionStatus !== "connected" || room || hasAttemptedReconnect) {
+      return;
+    }
+    const hostSession = loadHostSession();
+    if (hostSession) {
+      setHasAttemptedReconnect(true);
+      setPlayerName(hostSession.hostName);
+      setHostId(hostSession.hostId);
+      void emitRequest("reconnectHost", { hostId: hostSession.hostId }).then((response) => {
+        if (response.ok && response.room) {
+          setRoom(response.room);
+          saveHostSession({ ...hostSession, roomCode: response.room.code });
+          return;
+        }
+        saveHostSession(null);
+        setHostId(null);
+      });
       return;
     }
     const session = loadSession();
@@ -264,11 +337,9 @@ export function useGameClient(): GameClient {
       const response = await emitRequest("createRoom", { name });
       if (response.ok && response.room) {
         setRoom(response.room);
-        const nextPlayerId = identifyPlayer(response.room, name);
-        setPlayerId(nextPlayerId);
-        if (nextPlayerId) {
-          saveSession({ playerId: nextPlayerId, playerName: name, roomCode: response.room.code });
-        }
+        setPlayerId(null);
+        setHostId(response.room.hostId);
+        saveHostSession({ hostId: response.room.hostId, hostName: name, roomCode: response.room.code });
       }
       return response;
     },
@@ -278,6 +349,8 @@ export function useGameClient(): GameClient {
   const joinRoom = useCallback(
     async (roomCode: string, name: string) => {
       setPlayerName(name);
+      setHostId(null);
+      saveHostSession(null);
       const response = await emitRequest("joinRoom", { roomCode, name });
       if (response.ok && response.room) {
         setRoom(response.room);
@@ -301,10 +374,10 @@ export function useGameClient(): GameClient {
     async (submissionPlayerId: string) => emitRequest("submitVote", { submissionPlayerId }),
     [emitRequest],
   );
-  const reviewNext = useCallback(async () => emitRequest("reviewNext"), [emitRequest]);
+  const reviewNext = useCallback(async () => emitRequest("hostNext"), [emitRequest]);
   const advanceRound = useCallback(async () => emitRequest("advanceRound"), [emitRequest]);
-  const endGame = useCallback(async () => emitRequest("endGame"), [emitRequest]);
-  const vetoQuestion = useCallback(async () => emitRequest("vetoQuestion"), [emitRequest]);
+  const endGame = useCallback(async () => emitRequest("hostEndGame"), [emitRequest]);
+  const vetoQuestion = useCallback(async () => emitRequest("hostVeto"), [emitRequest]);
   const updateSettings = useCallback(
     async (settings: Partial<RoomState["settings"]>) => emitRequest("updateSettings", settings),
     [emitRequest],
@@ -316,7 +389,9 @@ export function useGameClient(): GameClient {
     }
     setRoom(null);
     setPlayerId(null);
+    setHostId(null);
     saveSession(null);
+    saveHostSession(null);
   }, [room, socket]);
 
   const resetError = useCallback(() => setLastError(null), []);
@@ -330,6 +405,7 @@ export function useGameClient(): GameClient {
       lastError,
       reviewState,
       showNextAnswer,
+      isHost: Boolean(hostId && room?.hostId === hostId),
       createRoom,
       joinRoom,
       startGame,
@@ -351,6 +427,7 @@ export function useGameClient(): GameClient {
       lastError,
       reviewState,
       showNextAnswer,
+      hostId,
       createRoom,
       joinRoom,
       startGame,

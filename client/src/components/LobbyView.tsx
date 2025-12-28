@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { Player, RoomState } from "../types";
+import type { RoomState } from "../types";
 import { PlayerList } from "./PlayerList";
 
 interface LobbyViewProps {
   room: RoomState;
-  me: Player | null;
+  isHost: boolean;
   onStartGame: () => Promise<void>;
   onUpdateSettings: (settings: Partial<RoomState["settings"]>) => Promise<void>;
 }
@@ -25,10 +25,10 @@ const SETTINGS_LIMITS = {
   secondsToReveal: { min: 5, max: 45, suffix: "seconds" },
 };
 
-export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyViewProps) {
+export function LobbyView({ room, isHost, onStartGame, onUpdateSettings }: LobbyViewProps) {
   const connectedCount = room.players.filter((p) => p.connected).length;
   const minPlayers = resolveMinPlayers();
-  const canStart = Boolean(me?.isHost) && connectedCount >= minPlayers;
+  const canStart = isHost && connectedCount >= minPlayers;
   const [draftSettings, setDraftSettings] = useState(room.settings);
   const [saving, setSaving] = useState(false);
 
@@ -48,7 +48,7 @@ export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyView
   };
 
   const handleSaveSettings = async () => {
-    if (!me?.isHost || !hasChanges) return;
+    if (!isHost || !hasChanges) return;
     setSaving(true);
     await onUpdateSettings(draftSettings);
     setSaving(false);
@@ -79,10 +79,10 @@ export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyView
               </button>
             </div>
             <p className="mt-2 text-sm text-slate-500">
-              Share this code with friends. Host: {room.players.find((p) => p.isHost)?.name}
+              Share this code with friends. Host: {isHost ? "You" : room.hostName}
             </p>
           </div>
-          {me?.isHost && (
+          {isHost && (
             <button
               type="button"
               onClick={handleStart}
@@ -102,7 +102,7 @@ export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyView
               min={SETTINGS_LIMITS.maxRounds.min}
               max={SETTINGS_LIMITS.maxRounds.max}
               suffix={SETTINGS_LIMITS.maxRounds.suffix}
-              editable={Boolean(me?.isHost)}
+              editable={isHost}
               onChange={handleSettingChange("maxRounds")}
             />
             <SettingField
@@ -111,7 +111,7 @@ export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyView
               min={SETTINGS_LIMITS.secondsToAnswer.min}
               max={SETTINGS_LIMITS.secondsToAnswer.max}
               suffix={SETTINGS_LIMITS.secondsToAnswer.suffix}
-              editable={Boolean(me?.isHost)}
+              editable={isHost}
               onChange={handleSettingChange("secondsToAnswer")}
             />
             <SettingField
@@ -120,7 +120,7 @@ export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyView
               min={SETTINGS_LIMITS.secondsToVote.min}
               max={SETTINGS_LIMITS.secondsToVote.max}
               suffix={SETTINGS_LIMITS.secondsToVote.suffix}
-              editable={Boolean(me?.isHost)}
+              editable={isHost}
               onChange={handleSettingChange("secondsToVote")}
             />
             <SettingField
@@ -129,11 +129,11 @@ export function LobbyView({ room, me, onStartGame, onUpdateSettings }: LobbyView
               min={SETTINGS_LIMITS.secondsToReveal.min}
               max={SETTINGS_LIMITS.secondsToReveal.max}
               suffix={SETTINGS_LIMITS.secondsToReveal.suffix}
-              editable={Boolean(me?.isHost)}
+              editable={isHost}
               onChange={handleSettingChange("secondsToReveal")}
             />
           </div>
-          {me?.isHost && (
+          {isHost && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
               <p className="text-slate-500">{hasChanges ? "Unsaved changes" : "Settings synced"}</p>
               <button

@@ -3,10 +3,11 @@ import type { Player, RoomState } from "../types";
 interface FinalSummaryProps {
   room: RoomState;
   me: Player | null;
+  isHost: boolean;
   onPlayAgain: () => Promise<void>;
 }
 
-export function FinalSummary({ room, me, onPlayAgain }: FinalSummaryProps) {
+export function FinalSummary({ room, me, isHost, onPlayAgain }: FinalSummaryProps) {
   const leaderboard = [...room.players].sort((a, b) => b.score - a.score);
   const trickster = leaderboard.reduce((prev, current) =>
     current.numPeopleTricked > prev.numPeopleTricked ? current : prev,
@@ -59,7 +60,7 @@ export function FinalSummary({ room, me, onPlayAgain }: FinalSummaryProps) {
         <AwardCard title="Most Known" description="Hot seat answers guessed most" player={mostKnown} />
       </div>
 
-      {me?.isHost && (
+      {isHost && (
         <button
           type="button"
           onClick={() => onPlayAgain()}

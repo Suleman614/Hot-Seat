@@ -22,9 +22,6 @@ export function PlayerList({ players }: PlayerListProps) {
             <div>
               <div className="flex items-center gap-2 font-semibold text-slate-800">
                 {player.name}
-                {player.isHost && (
-                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800">Host</span>
-                )}
                 {player.isHotSeat && (
                   <span className="rounded-full bg-pink-100 px-2 py-0.5 text-xs font-semibold text-pink-700">Hot Seat</span>
                 )}
@@ -47,5 +44,4 @@ export function PlayerList({ players }: PlayerListProps) {
     </div>
   );
 }
-
 

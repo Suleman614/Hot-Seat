@@ -12,6 +12,7 @@ interface ReviewState {
 interface GameBoardProps {
   room: RoomState;
   me: Player | null;
+  isHost: boolean;
   onSubmitAnswer: (text: string) => Promise<void>;
   onSubmitVote: (submissionPlayerId: string) => Promise<void>;
   onReviewNext: () => Promise<void>;
@@ -24,6 +25,7 @@ interface GameBoardProps {
 export function GameBoard({
   room,
   me,
+  isHost,
   onSubmitAnswer,
   onSubmitVote,
   onReviewNext,
@@ -151,21 +153,21 @@ export function GameBoard({
   };
 
   const handleAdvanceRound = async () => {
-    if (!me?.isHost || submitting) return;
+    if (!isHost || submitting) return;
     setSubmitting(true);
     await onAdvanceRound();
     setSubmitting(false);
   };
 
   const handleReviewNext = async () => {
-    if (!me?.isHost || submitting) return;
+    if (!isHost || submitting) return;
     setSubmitting(true);
     await onReviewNext();
     setSubmitting(false);
   };
 
   const handleVeto = async () => {
-    if (!me?.isHost || submitting) return;
+    if (!isHost || submitting) return;
     setSubmitting(true);
     await onVetoQuestion();
     setSubmitting(false);
@@ -173,7 +175,7 @@ export function GameBoard({
 
   const phase = room.gameState;
   const isFinalRound = room.rounds.length >= room.settings.maxRounds;
-  const canVeto = phase === "collectingAnswers" && Boolean(me?.isHost) && (currentRound?.submissions.length ?? 0) === 0;
+  const canVeto = phase === "collectingAnswers" && isHost && (currentRound?.submissions.length ?? 0) === 0;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-10 md:flex-row">
@@ -205,29 +207,33 @@ export function GameBoard({
           />
         </div>
 
-        {phase === "collectingAnswers" && me && (
-          <form onSubmit={handleSubmitAnswer} className="space-y-3">
-            <textarea
-              className="w-full rounded-3xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-base text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
-              rows={4}
-              placeholder={me.isHotSeat ? "Reveal the real answer..." : "Invent a fake answer..."}
-              disabled={submitting || hasSubmittedAnswer}
-              value={hasSubmittedAnswer ? mySubmission?.text ?? "" : answer}
-              readOnly={hasSubmittedAnswer}
-              onChange={(event) => setAnswer(event.target.value)}
-              maxLength={160}
-            />
-            <button
-              type="submit"
-              disabled={!answer.trim() || submitting || hasSubmittedAnswer}
-              className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:bg-indigo-300"
-            >
-              {hasSubmittedAnswer ? "Answer locked" : me.isHotSeat ? "Submit real answer" : "Lock in bluff"}
-            </button>
-            {hasSubmittedAnswer && (
-              <p className="text-sm font-medium text-emerald-600">
-                {me.isHotSeat ? "Real answer received. Waiting on other players..." : "Bluff locked in!"}
-              </p>
+        {phase === "collectingAnswers" && (
+          <div className="space-y-3">
+            {me && (
+              <form onSubmit={handleSubmitAnswer} className="space-y-3">
+                <textarea
+                  className="w-full rounded-3xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-base text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
+                  rows={4}
+                  placeholder={me.isHotSeat ? "Reveal the real answer..." : "Invent a fake answer..."}
+                  disabled={submitting || hasSubmittedAnswer}
+                  value={hasSubmittedAnswer ? mySubmission?.text ?? "" : answer}
+                  readOnly={hasSubmittedAnswer}
+                  onChange={(event) => setAnswer(event.target.value)}
+                  maxLength={160}
+                />
+                <button
+                  type="submit"
+                  disabled={!answer.trim() || submitting || hasSubmittedAnswer}
+                  className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:bg-indigo-300"
+                >
+                  {hasSubmittedAnswer ? "Answer locked" : me.isHotSeat ? "Submit real answer" : "Lock in bluff"}
+                </button>
+                {hasSubmittedAnswer && (
+                  <p className="text-sm font-medium text-emerald-600">
+                    {me.isHotSeat ? "Real answer received. Waiting on other players..." : "Bluff locked in!"}
+                  </p>
+                )}
+              </form>
             )}
             {canVeto && (
               <button
@@ -239,10 +245,10 @@ export function GameBoard({
                 Veto question
               </button>
             )}
-          </form>
+          </div>
         )}
 
-        {phase === "voting" && (
+        {phase === "voting" && me && (
           <div className="space-y-3">
             <p className="text-sm text-slate-500">Pick the real answer. No voting for yourself!</p>
             <div className="space-y-3">
@@ -299,7 +305,7 @@ export function GameBoard({
                 </div>
               ))}
             </div>
-            {me?.isHost ? (
+            {isHost ? (
               <button
                 type="button"
                 onClick={handleReviewNext}
@@ -348,7 +354,7 @@ export function GameBoard({
                 );
               })}
             </div>
-            {me?.isHost ? (
+            {isHost ? (
               <button
                 type="button"
                 onClick={handleAdvanceRound}

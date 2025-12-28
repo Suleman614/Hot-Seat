@@ -21,6 +21,7 @@ function App() {
     lastError,
     reviewState,
     showNextAnswer,
+    isHost,
     createRoom,
     joinRoom,
     startGame,
@@ -173,7 +174,7 @@ function App() {
           <StatusPill label="Room" value={room.code} />
           <StatusPill label="Player" value={playerName || me?.name || "You"} />
           {musicButton}
-          {me?.isHost && room.gameState !== "lobby" && room.gameState !== "finalSummary" && (
+          {isHost && room.gameState !== "lobby" && room.gameState !== "finalSummary" && (
             <button
               type="button"
               onClick={() => handleEndGame()}
@@ -210,7 +211,7 @@ function App() {
       {room.gameState === "lobby" && (
         <LobbyView
           room={room}
-          me={me}
+          isHost={isHost}
           onStartGame={() => handleStartGame()}
           onUpdateSettings={handleUpdateSettings}
         />
@@ -220,6 +221,7 @@ function App() {
         <GameBoard
           room={room}
           me={me}
+          isHost={isHost}
           onSubmitAnswer={handleSubmitAnswer}
           onSubmitVote={handleSubmitVote}
           onReviewNext={handleReviewNext}
@@ -231,7 +233,7 @@ function App() {
       )}
 
       {room.gameState === "finalSummary" && (
-        <FinalSummary room={room} me={me} onPlayAgain={() => handleStartGame()} />
+        <FinalSummary room={room} me={me} isHost={isHost} onPlayAgain={() => handleStartGame()} />
       )}
       <audio ref={audioRef} preload="auto" />
     </div>

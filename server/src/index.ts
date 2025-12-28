@@ -78,6 +78,25 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("reconnectHost", (payload: { hostId: string }, callback) => {
+    try {
+      const roomState = rooms.reconnectHost(payload.hostId, socket);
+      if (!roomState) {
+        throw new Error("Host not found");
+      }
+      if (typeof callback === "function") {
+        callback({ ok: true, room: roomState });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to reconnect host",
+        });
+      }
+    }
+  });
+
   socket.on("startGame", (callback) => {
     try {
       rooms.startGame(socket.id);
@@ -158,7 +177,39 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("hostEndGame", (callback) => {
+    try {
+      rooms.endGame(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to end game",
+        });
+      }
+    }
+  });
+
   socket.on("vetoQuestion", (callback) => {
+    try {
+      rooms.vetoQuestion(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to veto question",
+        });
+      }
+    }
+  });
+
+  socket.on("hostVeto", (callback) => {
     try {
       rooms.vetoQuestion(socket.id);
       if (typeof callback === "function") {
@@ -191,6 +242,22 @@ io.on("connection", (socket) => {
   });
 
   socket.on("reviewNext", (callback) => {
+    try {
+      rooms.reviewNext(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to review next answer",
+        });
+      }
+    }
+  });
+
+  socket.on("hostNext", (callback) => {
     try {
       rooms.reviewNext(socket.id);
       if (typeof callback === "function") {

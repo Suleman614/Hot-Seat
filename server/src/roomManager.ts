@@ -55,12 +55,14 @@ export class RoomManager {
 
   createRoom(hostName: string, socket: Socket): OutgoingRoomState {
     const code = this.generateRoomCode();
-    const hostPlayer = this.buildPlayer(hostName, code, socket.id, true);
+    const hostId = uuid();
 
     const room: Room = {
       code,
-      hostId: hostPlayer.id,
-      players: [hostPlayer],
+      hostId,
+      hostName: hostName.trim(),
+      hostSocketId: socket.id,
+      players: [],
       gameState: "lobby",
       currentRoundIndex: -1,
       rounds: [],
@@ -93,7 +95,7 @@ export class RoomManager {
       throw new Error("Name already taken");
     }
 
-    const player = this.buildPlayer(name, room.code, socket.id, false);
+    const player = this.buildPlayer(name, room.code, socket.id);
     room.players.push(player);
     socket.join(room.code);
     this.emitRoom(room);
@@ -101,6 +103,17 @@ export class RoomManager {
   }
 
   leaveRoom(socketId: string): void {
+    const hostRoom = this.findRoomByHostSocket(socketId);
+    if (hostRoom) {
+      if (hostRoom.gameState === "lobby") {
+        this.disposeRoom(hostRoom.code);
+        return;
+      }
+      this.endGame(socketId);
+      hostRoom.hostSocketId = undefined;
+      this.emitRoom(hostRoom);
+      return;
+    }
     const { room, player } = this.findPlayerBySocket(socketId) ?? {};
     if (!room || !player) {
       return;
@@ -110,6 +123,12 @@ export class RoomManager {
   }
 
   handleDisconnect(socketId: string): void {
+    const hostRoom = this.findRoomByHostSocket(socketId);
+    if (hostRoom) {
+      hostRoom.hostSocketId = undefined;
+      this.emitRoom(hostRoom);
+      return;
+    }
     const { room, player } = this.findPlayerBySocket(socketId) ?? {};
     if (!room || !player) {
       return;
@@ -139,14 +158,19 @@ export class RoomManager {
     return null;
   }
 
+  reconnectHost(hostId: string, socket: Socket): OutgoingRoomState | null {
+    const room = this.findRoomByHostId(hostId);
+    if (!room) {
+      return null;
+    }
+    room.hostSocketId = socket.id;
+    socket.join(room.code);
+    this.emitRoom(room);
+    return this.toPublicRoom(room);
+  }
+
   startGame(socketId: string): void {
-    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
-    if (!room || !player) {
-      throw new Error("Player not found");
-    }
-    if (!player.isHost) {
-      throw new Error("Only the host can start");
-    }
+    const room = this.requireHostRoom(socketId);
     if (room.players.length < MIN_PLAYERS) {
       throw new Error(`Need at least ${MIN_PLAYERS} players`);
     }
@@ -254,13 +278,7 @@ export class RoomManager {
   }
 
   updateSettings(socketId: string, settings: Partial<Room["settings"]>): void {
-    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
-    if (!room || !player) {
-      throw new Error("Player not found");
-    }
-    if (!player.isHost) {
-      throw new Error("Only host can update settings");
-    }
+    const room = this.requireHostRoom(socketId);
     if (room.gameState !== "lobby" && room.gameState !== "finalSummary") {
       throw new Error("Settings can only be updated before a game starts");
     }
@@ -294,13 +312,7 @@ export class RoomManager {
   }
 
   endGame(socketId: string): void {
-    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
-    if (!room || !player) {
-      throw new Error("Player not found");
-    }
-    if (!player.isHost) {
-      throw new Error("Only the host can end the game");
-    }
+    const room = this.requireHostRoom(socketId);
     if (room.gameState === "finalSummary") {
       return;
     }
@@ -313,13 +325,7 @@ export class RoomManager {
   }
 
   vetoQuestion(socketId: string): void {
-    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
-    if (!room || !player) {
-      throw new Error("Player not found");
-    }
-    if (!player.isHost) {
-      throw new Error("Only the host can veto");
-    }
+    const room = this.requireHostRoom(socketId);
     if (room.gameState !== "collectingAnswers") {
       throw new Error("Can only veto during answer phase");
     }
@@ -350,13 +356,7 @@ export class RoomManager {
   }
 
   reviewNext(socketId: string): void {
-    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
-    if (!room || !player) {
-      throw new Error("Player not found");
-    }
-    if (!player.isHost) {
-      throw new Error("Only the host can advance");
-    }
+    const room = this.requireHostRoom(socketId);
     if (room.gameState !== "reviewAnswers") {
       throw new Error("Not reviewing answers");
     }
@@ -378,13 +378,7 @@ export class RoomManager {
   }
 
   advanceRoundFromHost(socketId: string): void {
-    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
-    if (!room || !player) {
-      throw new Error("Player not found");
-    }
-    if (!player.isHost) {
-      throw new Error("Only the host can advance");
-    }
+    const room = this.requireHostRoom(socketId);
     if (room.gameState !== "showingResults") {
       throw new Error("Not ready to advance");
     }
@@ -476,9 +470,8 @@ export class RoomManager {
       totalAnswers: reviewOrder.length,
     });
 
-    const host = room.players.find((p) => p.isHost && p.connected);
-    if (host) {
-      this.io.to(host.socketId).emit("showNextAnswer");
+    if (room.hostSocketId) {
+      this.io.to(room.hostSocketId).emit("showNextAnswer");
     }
   }
 
@@ -558,9 +551,9 @@ export class RoomManager {
     let formatted = question;
     if (name) {
       const possessive = /s$/i.test(name) ? `${name}'` : `${name}'s`;
-    const withName = formatted.split("{hotSeat}").join(name);
-    const withPossessive = withName.split("{hotSeatPossessive}").join(possessive);
-    formatted = withPossessive.split("{hotSeatPossesive}").join(possessive);
+      const withName = formatted.split("{hotSeat}").join(name);
+      const withPossessive = withName.split("{hotSeatPossessive}").join(possessive);
+      formatted = withPossessive.split("{hotSeatPossesive}").join(possessive);
     }
 
     const randomPlayer = this.pickRandomOpponentName(players, hotSeat?.id);
@@ -729,27 +722,12 @@ export class RoomManager {
 
     if (room.gameState === "lobby") {
       room.players = room.players.filter((p) => p.id !== player.id);
-      if (room.players.length === 0) {
+      if (room.players.length === 0 && !room.hostSocketId) {
         this.disposeRoom(room.code);
         return;
       }
-      if (player.isHost) {
-        const nextHost = room.players[0];
-        if (nextHost) {
-          nextHost.isHost = true;
-          room.hostId = nextHost.id;
-        }
-      }
     } else {
       player.connected = false;
-      if (player.isHost) {
-        const replacement = room.players.find((p) => p.connected);
-        if (replacement) {
-          replacement.isHost = true;
-          room.hostId = replacement.id;
-          player.isHost = false;
-        }
-      }
       if (player.isHotSeat) {
         this.advanceRound(room);
       }
@@ -792,7 +770,7 @@ export class RoomManager {
     }
   }
 
-  private buildPlayer(name: string, roomCode: string, socketId: string, isHost: boolean): Player {
+  private buildPlayer(name: string, roomCode: string, socketId: string): Player {
     return {
       id: uuid(),
       name: name.trim(),
@@ -801,7 +779,6 @@ export class RoomManager {
       score: 0,
       numPeopleTricked: 0,
       numCorrectGuesses: 0,
-      isHost,
       isHotSeat: false,
       connected: true,
     };
@@ -819,9 +796,36 @@ export class RoomManager {
     return undefined;
   }
 
+  private findRoomByHostSocket(socketId: string): Room | undefined {
+    for (const room of this.rooms.values()) {
+      if (room.hostSocketId === socketId) {
+        return room;
+      }
+    }
+    return undefined;
+  }
+
+  private findRoomByHostId(hostId: string): Room | undefined {
+    for (const room of this.rooms.values()) {
+      if (room.hostId === hostId) {
+        return room;
+      }
+    }
+    return undefined;
+  }
+
+  private requireHostRoom(socketId: string): Room {
+    const room = this.findRoomByHostSocket(socketId);
+    if (!room) {
+      throw new Error("Host not found");
+    }
+    return room;
+  }
+
   private toPublicRoom(room: Room): OutgoingRoomState {
+    const { hostSocketId: _hostSocketId, ...publicRoom } = room;
     return {
-      ...room,
+      ...publicRoom,
       timers: {
         answerDeadline: room.deadlines.answer,
         voteDeadline: room.deadlines.vote,
