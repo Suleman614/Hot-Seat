@@ -92,10 +92,14 @@ export function GameBoard({
       return;
     }
     setReviewHistory((prev) => {
-      if (prev.some((entry) => entry.playerId === reviewState.answer?.playerId)) {
+      const answer = reviewState.answer;
+      if (!answer) {
         return prev;
       }
-      return [reviewState.answer, ...prev];
+      if (prev.some((entry) => entry.playerId === answer.playerId)) {
+        return prev;
+      }
+      return [answer, ...prev];
     });
   }, [room.gameState, reviewState?.answer]);
 
