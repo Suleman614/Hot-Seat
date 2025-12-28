@@ -382,12 +382,6 @@ export function GameBoard({
       }
       return;
     }
-    if (flowStep === "reveal") {
-      clearFlowTimers();
-      scheduleFlow(() => {
-        startScoring();
-      }, 1200);
-    }
     if (flowStep === "scoring") {
       setScorePops(buildScorePops());
       clearFlowTimers();
@@ -407,7 +401,6 @@ export function GameBoard({
     buildScorePops,
     clearFlowTimers,
     scheduleFlow,
-    startScoring,
     startRecap,
     scorePops.length,
   ]);
@@ -457,6 +450,11 @@ export function GameBoard({
     setSubmitting(true);
     await onReviewNext();
     setSubmitting(false);
+  };
+
+  const handleRevealNext = () => {
+    if (!isHost || submitting) return;
+    startScoring();
   };
 
   const handleVeto = async () => {
@@ -799,10 +797,28 @@ export function GameBoard({
 
       {flowStep === "reveal" && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 py-8 text-center">
-          <div className={`w-full max-w-3xl rounded-3xl border bg-white/95 px-8 py-6 shadow-2xl ${theme.promptBorder} ${theme.promptGlow}`}>
+          <div
+            className={`w-full max-w-3xl rounded-3xl border bg-white/95 px-8 py-6 shadow-2xl ${theme.promptBorder} ${theme.promptGlow}`}
+          >
             <p className={`text-xs font-semibold uppercase tracking-[0.35em] ${theme.accentText}`}>Real answer</p>
             <p className="mt-3 text-3xl font-black text-slate-900">{realSubmission?.text ?? "—"}</p>
             <p className="mt-3 text-sm font-semibold text-slate-500">{spotlightPrompt}</p>
+          </div>
+          <div className="mt-6 w-full max-w-md">
+            {isHost ? (
+              <button
+                type="button"
+                onClick={handleRevealNext}
+                disabled={submitting}
+                className={`w-full rounded-2xl bg-rose-600 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-rose-200 transition hover:bg-rose-500 disabled:bg-rose-300 focus-visible:ring-2 focus-visible:ring-offset-2 ${theme.focusRing}`}
+              >
+                Next
+              </button>
+            ) : (
+              <div className="rounded-2xl bg-white/20 px-4 py-3 text-center text-sm font-medium text-slate-100">
+                Waiting for the host to continue...
+              </div>
+            )}
           </div>
         </div>
       )}
