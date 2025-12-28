@@ -211,21 +211,21 @@ export class RoomManager {
       throw new Error("No active round");
     }
 
-    const trimmed = text.trim();
-    if (!trimmed) {
+    const sanitized = this.sanitizeAnswer(text);
+    if (!sanitized) {
       throw new Error("Answer cannot be empty");
     }
     if (player.isHotSeat) {
       // hot seat must submit real answer
       this.upsertSubmission(round, {
         playerId: player.id,
-        text: trimmed,
+        text: sanitized,
         isRealAnswer: true,
       });
     } else {
       this.upsertSubmission(round, {
         playerId: player.id,
-        text: trimmed,
+        text: sanitized,
         isRealAnswer: false,
       });
     }
@@ -468,7 +468,11 @@ export class RoomManager {
     room.deadlines.vote = Date.now() + room.settings.secondsToVote * 1000;
     room.deadlines.reveal = undefined;
 
-    this.shuffle(round.submissions);
+    if (round.reviewOrder && round.reviewOrder.length > 0) {
+      round.submissions = [...round.reviewOrder];
+    } else {
+      this.shuffle(round.submissions);
+    }
 
     room.timers.vote = setTimeout(() => {
       this.revealResults(room);
@@ -731,6 +735,14 @@ export class RoomManager {
 
   private normalizeAnswer(text: string): string {
     return text.trim().toLowerCase();
+  }
+
+  private sanitizeAnswer(text: string): string {
+    const normalized = text.trim().replace(/\s+/g, " ");
+    if (!normalized) {
+      return "";
+    }
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
   private buildPlayer(name: string, roomCode: string, socketId: string, isHost: boolean): Player {

@@ -35,6 +35,7 @@ export function GameBoard({
   const [answer, setAnswer] = useState("");
   const currentRound = room.rounds[room.currentRoundIndex];
   const [submitting, setSubmitting] = useState(false);
+  const [reviewHistory, setReviewHistory] = useState<Submission[]>([]);
 
   const myVote = me && currentRound?.votes.find((vote) => vote.voterId === me.id);
   const hotSeat = currentRound && room.players.find((p) => p.id === currentRound.hotSeatPlayerId);
@@ -81,6 +82,22 @@ export function GameBoard({
     setAnswer("");
     setSubmitting(false);
   }, [currentRound?.id]);
+
+  useEffect(() => {
+    if (room.gameState !== "reviewAnswers") {
+      setReviewHistory([]);
+      return;
+    }
+    if (!reviewState?.answer) {
+      return;
+    }
+    setReviewHistory((prev) => {
+      if (prev.some((entry) => entry.playerId === reviewState.answer?.playerId)) {
+        return prev;
+      }
+      return [reviewState.answer, ...prev];
+    });
+  }, [room.gameState, reviewState?.answer]);
 
   useEffect(() => {
     if (room.gameState !== "collectingAnswers" || !me || hasSubmittedAnswer) {
@@ -257,11 +274,26 @@ export function GameBoard({
             <p className="text-sm text-slate-500">
               Reviewing answers {reviewState ? `(${reviewState.totalAnswers} total)` : ""}
             </p>
-            <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 shadow-inner">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Answer card</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">
-                {reviewState?.answer?.text ?? "Waiting for the host to reveal an answer..."}
-              </p>
+            <div className="flex flex-col-reverse gap-3">
+              {reviewHistory.length === 0 && (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 shadow-inner">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Answer card</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">
+                    Waiting for the host to reveal an answer...
+                  </p>
+                </div>
+              )}
+              {reviewHistory.map((entry, index) => (
+                <div
+                  key={entry.playerId}
+                  className={`rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 shadow-inner ${
+                    index === 0 ? "answer-drop" : ""
+                  }`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Answer card</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">{entry.text}</p>
+                </div>
+              ))}
             </div>
             {me?.isHost ? (
               <button
