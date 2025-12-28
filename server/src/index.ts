@@ -224,7 +224,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    rooms.leaveRoom(socket.id);
+    rooms.handleDisconnect(socket.id);
   });
 });
 

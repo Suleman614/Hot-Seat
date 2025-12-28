@@ -22,6 +22,14 @@ const MIN_PLAYERS = (() => {
   return 3;
 })();
 
+const REJOIN_GRACE_MS = (() => {
+  const parsed = Number(process.env.REJOIN_GRACE_MS);
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    return Math.floor(parsed);
+  }
+  return 60_000;
+})();
+
 const DEFAULT_SETTINGS = {
   maxRounds: 5,
   secondsToAnswer: 45,
@@ -39,6 +47,7 @@ const SETTINGS_LIMITS = {
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private heartbeat: NodeJS.Timeout;
+  private disconnectTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(private io: Server) {
     this.heartbeat = setInterval(() => this.tickRooms(), 1000);
@@ -96,68 +105,30 @@ export class RoomManager {
     if (!room || !player) {
       return;
     }
+    this.clearDisconnectTimer(player.id);
+    this.finalizeDisconnect(room.code, player.id);
+  }
 
-    if (room.gameState === "lobby") {
-      room.players = room.players.filter((p) => p.id !== player.id);
-      if (room.players.length === 0) {
-        this.disposeRoom(room.code);
-        return;
-      }
-      if (player.isHost) {
-        const nextHost = room.players[0];
-        if (nextHost) {
-          nextHost.isHost = true;
-          room.hostId = nextHost.id;
-        }
-      }
-    } else {
-      player.connected = false;
-      if (player.isHost) {
-        const replacement = room.players.find((p) => p.connected);
-        if (replacement) {
-          replacement.isHost = true;
-          room.hostId = replacement.id;
-          player.isHost = false;
-        }
-      }
-      if (player.isHotSeat) {
-        this.advanceRound(room);
-      }
-    }
-
-    if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < MIN_PLAYERS) {
-      this.clearTimers(room);
-      room.gameState = "finalSummary";
-      this.emitRoom(room);
+  handleDisconnect(socketId: string): void {
+    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
+    if (!room || !player) {
       return;
     }
-
-    const currentRound = this.currentRound(room);
-    if (room.gameState === "collectingAnswers" && currentRound) {
-      const totalNeeded = room.players.filter((p) => p.connected).length;
-      const submissionCount = new Set(currentRound.submissions.map((s) => s.playerId)).size;
-      const hotSeatSubmitted = currentRound.submissions.some((s) => s.isRealAnswer);
-      if (hotSeatSubmitted && submissionCount >= totalNeeded) {
-        this.startReviewPhase(room);
-        return;
-      }
+    if (this.disconnectTimers.has(player.id)) {
+      return;
     }
-
-    if (room.gameState === "voting" && currentRound) {
-      const votingPlayers = room.players.filter((p) => p.connected && !p.isHotSeat).length;
-      if (currentRound.votes.length >= votingPlayers) {
-        this.revealResults(room);
-        return;
-      }
-    }
-
-    this.emitRoom(room);
+    const timer = setTimeout(() => {
+      this.disconnectTimers.delete(player.id);
+      this.finalizeDisconnect(room.code, player.id);
+    }, REJOIN_GRACE_MS);
+    this.disconnectTimers.set(player.id, timer);
   }
 
   reconnectPlayer(playerId: string, socket: Socket): OutgoingRoomState | null {
     for (const room of this.rooms.values()) {
       const player = room.players.find((p) => p.id === playerId);
       if (player) {
+        this.clearDisconnectTimer(player.id);
         player.connected = true;
         player.socketId = socket.id;
         socket.join(room.code);
@@ -745,6 +716,81 @@ export class RoomManager {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
+  private finalizeDisconnect(roomCode: string, playerId: string): void {
+    const room = this.rooms.get(roomCode);
+    if (!room) {
+      return;
+    }
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) {
+      return;
+    }
+
+    if (room.gameState === "lobby") {
+      room.players = room.players.filter((p) => p.id !== player.id);
+      if (room.players.length === 0) {
+        this.disposeRoom(room.code);
+        return;
+      }
+      if (player.isHost) {
+        const nextHost = room.players[0];
+        if (nextHost) {
+          nextHost.isHost = true;
+          room.hostId = nextHost.id;
+        }
+      }
+    } else {
+      player.connected = false;
+      if (player.isHost) {
+        const replacement = room.players.find((p) => p.connected);
+        if (replacement) {
+          replacement.isHost = true;
+          room.hostId = replacement.id;
+          player.isHost = false;
+        }
+      }
+      if (player.isHotSeat) {
+        this.advanceRound(room);
+      }
+    }
+
+    if (room.gameState !== "lobby" && room.players.filter((p) => p.connected).length < MIN_PLAYERS) {
+      this.clearTimers(room);
+      room.gameState = "finalSummary";
+      this.emitRoom(room);
+      return;
+    }
+
+    const currentRound = this.currentRound(room);
+    if (room.gameState === "collectingAnswers" && currentRound) {
+      const totalNeeded = room.players.filter((p) => p.connected).length;
+      const submissionCount = new Set(currentRound.submissions.map((s) => s.playerId)).size;
+      const hotSeatSubmitted = currentRound.submissions.some((s) => s.isRealAnswer);
+      if (hotSeatSubmitted && submissionCount >= totalNeeded) {
+        this.startReviewPhase(room);
+        return;
+      }
+    }
+
+    if (room.gameState === "voting" && currentRound) {
+      const votingPlayers = room.players.filter((p) => p.connected && !p.isHotSeat).length;
+      if (currentRound.votes.length >= votingPlayers) {
+        this.revealResults(room);
+        return;
+      }
+    }
+
+    this.emitRoom(room);
+  }
+
+  private clearDisconnectTimer(playerId: string): void {
+    const timer = this.disconnectTimers.get(playerId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(playerId);
+    }
+  }
+
   private buildPlayer(name: string, roomCode: string, socketId: string, isHost: boolean): Player {
     return {
       id: uuid(),
@@ -805,6 +851,9 @@ export class RoomManager {
     const room = this.rooms.get(code);
     if (!room) return;
     this.clearTimers(room);
+    room.players.forEach((player) => {
+      this.clearDisconnectTimer(player.id);
+    });
     this.rooms.delete(code);
   }
 

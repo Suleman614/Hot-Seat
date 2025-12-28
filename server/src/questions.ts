@@ -32,6 +32,14 @@ export const QUESTION_BANK: string[] = [
   "How does {hotSeat} usually handle stress?",
   "Who would {hotSeat} call if they needed advice?",
   "What nickname does {hotSeat} think would fit {randomPlayer} perfectly?",
+  "If {hotSeat} had to give a TED Talk on a completely random topic, what would it be?",
+  "If {hotSeat} had to choose one memory to keep while losing all others, which would they hold onto?",
+  "What is the most normal thing that instantly overwhelms {hotSeat}?",
+  "What is one thing {hotSeat} absolutely should not be trusted with?",
+  "What is something {hotSeat} thinks they could beat {randomPlayer} at with absolutely zero practice?",
+  "What is something {hotSeat} always plans to do \"tomorrow\" but never actually does?",
+  "What is the most unnecessary thing {hotSeat} has strong opinions about?",
+  "Hot seat is old and on their deathbed. With their last breath, they deliver their last words. What do they say and who do they say it to?",
 ];
 
 export function getShuffledQuestions(): string[] {
