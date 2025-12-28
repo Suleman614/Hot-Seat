@@ -1,17 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Countdown } from "./Countdown";
-import type { Player, RoomState } from "../types";
+import type { Player, RoomState, Submission } from "../types";
+
+interface ReviewState {
+  prompt: string;
+  totalAnswers: number;
+  answer: Submission | null;
+}
 
 interface GameBoardProps {
   room: RoomState;
   me: Player | null;
   onSubmitAnswer: (text: string) => Promise<void>;
   onSubmitVote: (submissionPlayerId: string) => Promise<void>;
+  onReviewNext: () => Promise<void>;
   onAdvanceRound: () => Promise<void>;
+  onVetoQuestion: () => Promise<void>;
+  reviewState: ReviewState | null;
+  showNextAnswer: boolean;
 }
 
-export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRound }: GameBoardProps) {
+export function GameBoard({
+  room,
+  me,
+  onSubmitAnswer,
+  onSubmitVote,
+  onReviewNext,
+  onAdvanceRound,
+  onVetoQuestion,
+  reviewState,
+  showNextAnswer,
+}: GameBoardProps) {
   const [answer, setAnswer] = useState("");
   const currentRound = room.rounds[room.currentRoundIndex];
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +49,21 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRou
     });
     return map;
   }, [currentRound]);
+
+  const mostConvincingId = useMemo(() => {
+    if (!currentRound || currentRound.submissions.length === 0) return null;
+    let bestId: string | null = null;
+    let bestVotes = -1;
+    currentRound.submissions.forEach((submission) => {
+      if (submission.isRealAnswer) return;
+      const votes = submissionMap.get(submission.playerId) ?? 0;
+      if (votes > bestVotes) {
+        bestVotes = votes;
+        bestId = submission.playerId;
+      }
+    });
+    return bestId;
+  }, [currentRound, submissionMap]);
 
   const votersBySubmission = useMemo(() => {
     if (!currentRound) return new Map<string, string[]>();
@@ -101,8 +136,23 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRou
     setSubmitting(false);
   };
 
+  const handleReviewNext = async () => {
+    if (!me?.isHost || submitting) return;
+    setSubmitting(true);
+    await onReviewNext();
+    setSubmitting(false);
+  };
+
+  const handleVeto = async () => {
+    if (!me?.isHost || submitting) return;
+    setSubmitting(true);
+    await onVetoQuestion();
+    setSubmitting(false);
+  };
+
   const phase = room.gameState;
   const isFinalRound = room.rounds.length >= room.settings.maxRounds;
+  const canVeto = phase === "collectingAnswers" && Boolean(me?.isHost) && (currentRound?.submissions.length ?? 0) === 0;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-10 md:flex-row">
@@ -158,6 +208,16 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRou
                 {me.isHotSeat ? "Real answer received. Waiting on other players..." : "Bluff locked in!"}
               </p>
             )}
+            {canVeto && (
+              <button
+                type="button"
+                onClick={handleVeto}
+                disabled={submitting}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow hover:bg-slate-50 disabled:bg-slate-100"
+              >
+                Veto question
+              </button>
+            )}
           </form>
         )}
 
@@ -192,6 +252,34 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRou
           </div>
         )}
 
+        {phase === "reviewAnswers" && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500">
+              Reviewing answers {reviewState ? `(${reviewState.totalAnswers} total)` : ""}
+            </p>
+            <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-5 py-4 shadow-inner">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-500">Answer card</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">
+                {reviewState?.answer?.text ?? "Waiting for the host to reveal an answer..."}
+              </p>
+            </div>
+            {me?.isHost ? (
+              <button
+                type="button"
+                onClick={handleReviewNext}
+                disabled={submitting || !showNextAnswer}
+                className="w-full rounded-2xl bg-amber-500 px-4 py-3 text-base font-semibold text-white shadow-lg shadow-amber-200 transition hover:bg-amber-400 disabled:bg-amber-200"
+              >
+                Next answer
+              </button>
+            ) : (
+              <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-600">
+                Waiting for the host...
+              </div>
+            )}
+          </div>
+        )}
+
         {phase === "showingResults" && (
           <div className="space-y-3">
             <p className="text-sm text-slate-500">Here&apos;s how the bluff went down.</p>
@@ -201,6 +289,7 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRou
                 const votes = submissionMap.get(submission.playerId) ?? 0;
                 const isReal = submission.isRealAnswer;
                 const voters = votersBySubmission.get(submission.playerId) ?? [];
+                const isMostConvincing = submission.playerId === mostConvincingId;
                 return (
                   <div
                     key={submission.playerId}
@@ -214,6 +303,11 @@ export function GameBoard({ room, me, onSubmitAnswer, onSubmitVote, onAdvanceRou
                     <p className="text-xs text-slate-500">
                       {voters.length > 0 ? `Voted by ${voters.join(", ")}` : "No votes"}
                     </p>
+                    {!isReal && isMostConvincing && (
+                      <span className="mt-2 inline-flex rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-violet-700">
+                        Most Convincing Fake Answer
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -267,6 +361,8 @@ function phaseLabel(state: RoomState["gameState"]) {
   switch (state) {
     case "collectingAnswers":
       return "Answer phase";
+    case "reviewAnswers":
+      return "Review answers";
     case "voting":
       return "Voting phase";
     case "showingResults":

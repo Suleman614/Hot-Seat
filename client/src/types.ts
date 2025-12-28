@@ -1,6 +1,7 @@
 export type GameState =
   | "lobby"
   | "collectingAnswers"
+  | "reviewAnswers"
   | "voting"
   | "showingResults"
   | "finalSummary";
@@ -41,7 +42,9 @@ export interface Round {
   question: string;
   submissions: Submission[];
   votes: Vote[];
-  status: "pending" | "collectingAnswers" | "voting" | "showingResults" | "complete";
+  status: "pending" | "collectingAnswers" | "reviewAnswers" | "voting" | "showingResults" | "complete";
+  reviewOrder?: Submission[];
+  reviewIndex?: number;
 }
 
 export interface RoomState {
@@ -72,5 +75,4 @@ export interface ActionResult<T = unknown> {
   error?: string;
   data?: T;
 }
-
 

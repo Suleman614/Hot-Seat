@@ -158,6 +158,22 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("vetoQuestion", (callback) => {
+    try {
+      rooms.vetoQuestion(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to veto question",
+        });
+      }
+    }
+  });
+
   socket.on("advanceRound", (callback) => {
     try {
       rooms.advanceRoundFromHost(socket.id);
@@ -169,6 +185,22 @@ io.on("connection", (socket) => {
         callback({
           ok: false,
           error: error instanceof Error ? error.message : "Failed to advance round",
+        });
+      }
+    }
+  });
+
+  socket.on("reviewNext", (callback) => {
+    try {
+      rooms.reviewNext(socket.id);
+      if (typeof callback === "function") {
+        callback({ ok: true });
+      }
+    } catch (error) {
+      if (typeof callback === "function") {
+        callback({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to review next answer",
         });
       }
     }

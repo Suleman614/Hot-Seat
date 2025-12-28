@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import type { ActionResult, RoomState } from "../types";
+import type { ActionResult, RoomState, Submission } from "../types";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 const STORAGE_KEY = "hotseat-session";
@@ -11,6 +11,12 @@ type StoredSession = {
   playerId: string;
   playerName: string;
   roomCode: string;
+};
+
+type ReviewState = {
+  prompt: string;
+  totalAnswers: number;
+  answer: Submission | null;
 };
 
 const loadSession = (): StoredSession | null => {
@@ -43,13 +49,17 @@ export interface GameClient {
   playerName: string;
   connectionStatus: "connecting" | "connected" | "disconnected";
   lastError: string | null;
+  reviewState: ReviewState | null;
+  showNextAnswer: boolean;
   createRoom: (name: string) => Promise<ActionResult>;
   joinRoom: (roomCode: string, name: string) => Promise<ActionResult>;
   startGame: () => Promise<ActionResult>;
   submitAnswer: (text: string) => Promise<ActionResult>;
   submitVote: (submissionPlayerId: string) => Promise<ActionResult>;
+  reviewNext: () => Promise<ActionResult>;
   advanceRound: () => Promise<ActionResult>;
   endGame: () => Promise<ActionResult>;
+  vetoQuestion: () => Promise<ActionResult>;
   updateSettings: (settings: Partial<RoomState["settings"]>) => Promise<ActionResult>;
   leaveRoom: () => void;
   resetError: () => void;
@@ -60,6 +70,10 @@ export function useGameClient(): GameClient {
     io(SERVER_URL, {
       autoConnect: false,
       transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 2000,
     }),
   );
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -69,6 +83,8 @@ export function useGameClient(): GameClient {
   const [lastError, setLastError] = useState<string | null>(null);
   const [hasAttemptedReconnect, setHasAttemptedReconnect] = useState(false);
   const [reconnectPending, setReconnectPending] = useState(false);
+  const [reviewState, setReviewState] = useState<ReviewState | null>(null);
+  const [showNextAnswer, setShowNextAnswer] = useState(false);
 
   const emitRequest = useCallback(
     async (event: string, payload?: RequestPayload): Promise<ActionResult> => {
@@ -148,6 +164,45 @@ export function useGameClient(): GameClient {
       socket.off("connect_error", handleConnectError);
     };
   }, [socket, playerName, playerId]);
+
+  useEffect(() => {
+    const handleReviewStart = (payload: { prompt: string; totalAnswers: number }) => {
+      setReviewState({ prompt: payload.prompt, totalAnswers: payload.totalAnswers, answer: null });
+    };
+    const handleReviewAnswer = (payload: { prompt: string; answer: Submission }) => {
+      setReviewState((prev) => ({
+        prompt: payload.prompt,
+        totalAnswers: prev?.totalAnswers ?? 0,
+        answer: payload.answer,
+      }));
+    };
+    const handleShowNext = () => {
+      setShowNextAnswer(true);
+    };
+    const handleStartVoting = () => {
+      setReviewState(null);
+      setShowNextAnswer(false);
+    };
+
+    socket.on("reviewAnswersStart", handleReviewStart);
+    socket.on("reviewAnswer", handleReviewAnswer);
+    socket.on("showNextAnswer", handleShowNext);
+    socket.on("startVoting", handleStartVoting);
+
+    return () => {
+      socket.off("reviewAnswersStart", handleReviewStart);
+      socket.off("reviewAnswer", handleReviewAnswer);
+      socket.off("showNextAnswer", handleShowNext);
+      socket.off("startVoting", handleStartVoting);
+    };
+  }, [socket]);
+
+  useEffect(() => {
+    if (room?.gameState !== "reviewAnswers") {
+      setReviewState(null);
+      setShowNextAnswer(false);
+    }
+  }, [room?.gameState]);
 
   useEffect(() => {
     if (connectionStatus !== "connected" || !reconnectPending || !playerId) {
@@ -246,8 +301,10 @@ export function useGameClient(): GameClient {
     async (submissionPlayerId: string) => emitRequest("submitVote", { submissionPlayerId }),
     [emitRequest],
   );
+  const reviewNext = useCallback(async () => emitRequest("reviewNext"), [emitRequest]);
   const advanceRound = useCallback(async () => emitRequest("advanceRound"), [emitRequest]);
   const endGame = useCallback(async () => emitRequest("endGame"), [emitRequest]);
+  const vetoQuestion = useCallback(async () => emitRequest("vetoQuestion"), [emitRequest]);
   const updateSettings = useCallback(
     async (settings: Partial<RoomState["settings"]>) => emitRequest("updateSettings", settings),
     [emitRequest],
@@ -271,13 +328,17 @@ export function useGameClient(): GameClient {
       playerName,
       connectionStatus,
       lastError,
+      reviewState,
+      showNextAnswer,
       createRoom,
       joinRoom,
       startGame,
       submitAnswer,
       submitVote,
+      reviewNext,
       advanceRound,
       endGame,
+      vetoQuestion,
       updateSettings,
       leaveRoom,
       resetError,
@@ -288,13 +349,17 @@ export function useGameClient(): GameClient {
       playerName,
       connectionStatus,
       lastError,
+      reviewState,
+      showNextAnswer,
       createRoom,
       joinRoom,
       startGame,
       submitAnswer,
       submitVote,
+      reviewNext,
       advanceRound,
       endGame,
+      vetoQuestion,
       updateSettings,
       leaveRoom,
       resetError,

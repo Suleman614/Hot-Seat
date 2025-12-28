@@ -1,6 +1,7 @@
 export type GameState =
   | "lobby"
   | "collectingAnswers"
+  | "reviewAnswers"
   | "voting"
   | "showingResults"
   | "finalSummary";
@@ -36,7 +37,13 @@ export interface Vote {
   submissionPlayerId: string;
 }
 
-export type RoundStatus = "pending" | "collectingAnswers" | "voting" | "showingResults" | "complete";
+export type RoundStatus =
+  | "pending"
+  | "collectingAnswers"
+  | "reviewAnswers"
+  | "voting"
+  | "showingResults"
+  | "complete";
 
 export interface Round {
   id: string;
@@ -46,6 +53,8 @@ export interface Round {
   votes: Vote[];
   status: RoundStatus;
   revealedAt?: number;
+  reviewOrder?: Submission[];
+  reviewIndex?: number;
 }
 
 export interface Room {
@@ -77,5 +86,4 @@ export interface OutgoingRoomState extends Omit<Room, "timers"> {
     revealDeadline?: number;
   };
 }
-
 

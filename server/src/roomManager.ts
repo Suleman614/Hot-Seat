@@ -138,7 +138,7 @@ export class RoomManager {
       const submissionCount = new Set(currentRound.submissions.map((s) => s.playerId)).size;
       const hotSeatSubmitted = currentRound.submissions.some((s) => s.isRealAnswer);
       if (hotSeatSubmitted && submissionCount >= totalNeeded) {
-        this.startVotingPhase(room);
+        this.startReviewPhase(room);
         return;
       }
     }
@@ -239,7 +239,7 @@ export class RoomManager {
       ? round.submissions.some((s) => s.playerId === hotSeat.id && s.isRealAnswer)
       : false;
     if (submissionCount >= connectedPlayers.length && (!hotSeatConnected || hotSeatSubmitted)) {
-      this.startVotingPhase(room);
+      this.startReviewPhase(room);
       return;
     }
 
@@ -341,6 +341,71 @@ export class RoomManager {
     this.emitRoom(room);
   }
 
+  vetoQuestion(socketId: string): void {
+    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
+    if (!room || !player) {
+      throw new Error("Player not found");
+    }
+    if (!player.isHost) {
+      throw new Error("Only the host can veto");
+    }
+    if (room.gameState !== "collectingAnswers") {
+      throw new Error("Can only veto during answer phase");
+    }
+    const round = this.currentRound(room);
+    if (!round) {
+      throw new Error("No active round");
+    }
+    if (round.submissions.length > 0) {
+      throw new Error("Cannot veto after answers are submitted");
+    }
+
+    if (round.question) {
+      room.questionDeck.unshift(round.question);
+    }
+    const hotSeat = this.getHotSeat(room);
+    round.question = this.drawQuestion(room, hotSeat);
+    round.status = "collectingAnswers";
+
+    this.clearTimer(room, "answer");
+    room.deadlines.answer = Date.now() + room.settings.secondsToAnswer * 1000;
+    room.deadlines.vote = undefined;
+    room.deadlines.reveal = undefined;
+    room.timers.answer = setTimeout(() => {
+      this.startReviewPhase(room);
+    }, room.settings.secondsToAnswer * 1000);
+
+    this.emitRoom(room);
+  }
+
+  reviewNext(socketId: string): void {
+    const { room, player } = this.findPlayerBySocket(socketId) ?? {};
+    if (!room || !player) {
+      throw new Error("Player not found");
+    }
+    if (!player.isHost) {
+      throw new Error("Only the host can advance");
+    }
+    if (room.gameState !== "reviewAnswers") {
+      throw new Error("Not reviewing answers");
+    }
+    const round = this.currentRound(room);
+    if (!round || !round.reviewOrder) {
+      throw new Error("No review order");
+    }
+
+    const reviewIndex = round.reviewIndex ?? 0;
+    if (reviewIndex >= round.reviewOrder.length) {
+      this.startVotingPhase(room);
+      return;
+    }
+
+    const answer = round.reviewOrder[reviewIndex];
+    round.reviewIndex = reviewIndex + 1;
+    this.io.to(room.code).emit("reviewAnswer", { prompt: round.question, answer });
+    this.emitRoom(room);
+  }
+
   advanceRoundFromHost(socketId: string): void {
     const { room, player } = this.findPlayerBySocket(socketId) ?? {};
     if (!room || !player) {
@@ -387,7 +452,7 @@ export class RoomManager {
     room.deadlines.reveal = undefined;
 
     room.timers.answer = setTimeout(() => {
-      this.startVotingPhase(room);
+      this.startReviewPhase(room);
     }, room.settings.secondsToAnswer * 1000);
 
     this.emitRoom(room);
@@ -409,7 +474,37 @@ export class RoomManager {
       this.revealResults(room);
     }, room.settings.secondsToVote * 1000);
 
+    this.io.to(room.code).emit("startVoting", { prompt: round.question });
     this.emitRoom(room);
+  }
+
+  private startReviewPhase(room: Room): void {
+    const round = this.currentRound(room);
+    if (!round) return;
+    if (room.gameState === "reviewAnswers") return;
+    this.ensureAllSubmissions(room, round);
+    room.gameState = "reviewAnswers";
+    round.status = "reviewAnswers";
+    this.clearTimer(room, "answer");
+    room.deadlines.answer = undefined;
+    room.deadlines.vote = undefined;
+    room.deadlines.reveal = undefined;
+
+    const reviewOrder = [...round.submissions];
+    this.shuffle(reviewOrder);
+    round.reviewOrder = reviewOrder;
+    round.reviewIndex = 0;
+
+    this.emitRoom(room);
+    this.io.to(room.code).emit("reviewAnswersStart", {
+      prompt: round.question,
+      totalAnswers: reviewOrder.length,
+    });
+
+    const host = room.players.find((p) => p.isHost && p.connected);
+    if (host) {
+      this.io.to(host.socketId).emit("showNextAnswer");
+    }
   }
 
   private revealResults(room: Room): void {
@@ -431,7 +526,7 @@ export class RoomManager {
     const now = Date.now();
     for (const room of this.rooms.values()) {
       if (room.gameState === "collectingAnswers" && room.deadlines.answer && now >= room.deadlines.answer) {
-        this.startVotingPhase(room);
+        this.startReviewPhase(room);
         continue;
       }
       if (room.gameState === "voting" && room.deadlines.vote && now >= room.deadlines.vote) {
@@ -553,9 +648,20 @@ export class RoomManager {
       submissionByPlayer.set(submission.playerId, submission);
     });
 
+    const fakeGroups = new Map<string, string[]>();
+    round.submissions.forEach((submission) => {
+      if (submission.isRealAnswer) {
+        return;
+      }
+      const normalized = this.normalizeAnswer(submission.text);
+      const group = fakeGroups.get(normalized) ?? [];
+      group.push(submission.playerId);
+      fakeGroups.set(normalized, group);
+    });
+
     const hotSeat = this.getHotSeat(room);
     const hotSeatSubmission = hotSeat ? submissionByPlayer.get(hotSeat.id) : undefined;
-    const hotSeatAnswer = hotSeatSubmission?.text.trim().toLowerCase() ?? "";
+    const hotSeatAnswer = hotSeatSubmission ? this.normalizeAnswer(hotSeatSubmission.text) : "";
 
     if (hotSeatAnswer) {
       round.submissions.forEach((submission) => {
@@ -583,11 +689,16 @@ export class RoomManager {
         voter.score += 2;
         voter.numCorrectGuesses += 1;
       } else {
-        const submissionOwner = room.players.find((p) => p.id === submission.playerId);
-        if (submissionOwner) {
-          submissionOwner.score += 1;
-          submissionOwner.numPeopleTricked += 1;
-        }
+        const normalized = this.normalizeAnswer(submission.text);
+        const group = fakeGroups.get(normalized) ?? [submission.playerId];
+        const splitValue = 1 / group.length;
+        group.forEach((playerId) => {
+          const submissionOwner = room.players.find((p) => p.id === playerId);
+          if (submissionOwner) {
+            submissionOwner.score += splitValue;
+            submissionOwner.numPeopleTricked += splitValue;
+          }
+        });
       }
     });
     round.status = "complete";
@@ -616,6 +727,10 @@ export class RoomManager {
       return fallback;
     }
     return Math.min(max, Math.max(min, Math.floor(value)));
+  }
+
+  private normalizeAnswer(text: string): string {
+    return text.trim().toLowerCase();
   }
 
   private buildPlayer(name: string, roomCode: string, socketId: string, isHost: boolean): Player {

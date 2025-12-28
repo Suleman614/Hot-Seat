@@ -19,13 +19,17 @@ function App() {
     playerName,
     connectionStatus,
     lastError,
+    reviewState,
+    showNextAnswer,
     createRoom,
     joinRoom,
     startGame,
     submitAnswer,
     submitVote,
+    reviewNext,
     advanceRound,
     endGame,
+    vetoQuestion,
     updateSettings,
     leaveRoom,
     resetError,
@@ -92,9 +96,17 @@ function App() {
     await advanceRound();
   }, [advanceRound]);
 
+  const handleReviewNext = useCallback(async () => {
+    await reviewNext();
+  }, [reviewNext]);
+
   const handleEndGame = useCallback(async () => {
     await endGame();
   }, [endGame]);
+
+  const handleVetoQuestion = useCallback(async () => {
+    await vetoQuestion();
+  }, [vetoQuestion]);
 
   const resolveMusicTrack = () => {
     if (room?.gameState === "finalSummary") {
@@ -147,8 +159,10 @@ function App() {
     );
   }
 
+  const backgroundClass = resolveBackgroundClass(room.gameState);
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-white to-slate-100">
+    <div className={`min-h-screen ${backgroundClass}`}>
       <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Hot Seat</p>
@@ -202,13 +216,17 @@ function App() {
         />
       )}
 
-      {["collectingAnswers", "voting", "showingResults"].includes(room.gameState) && (
+      {["collectingAnswers", "reviewAnswers", "voting", "showingResults"].includes(room.gameState) && (
         <GameBoard
           room={room}
           me={me}
           onSubmitAnswer={handleSubmitAnswer}
           onSubmitVote={handleSubmitVote}
+          onReviewNext={handleReviewNext}
           onAdvanceRound={handleAdvanceRound}
+          onVetoQuestion={handleVetoQuestion}
+          reviewState={reviewState}
+          showNextAnswer={showNextAnswer}
         />
       )}
 
@@ -228,4 +246,22 @@ function StatusPill({ label, value }: { label: string; value: string }) {
   );
 }
 
+function resolveBackgroundClass(state: string) {
+  switch (state) {
+    case "lobby":
+      return "bg-gradient-to-b from-sky-100 via-sky-50 to-white";
+    case "collectingAnswers":
+      return "bg-gradient-to-b from-amber-100 via-amber-50 to-white";
+    case "reviewAnswers":
+      return "bg-gradient-to-b from-amber-100 via-amber-50 to-white";
+    case "voting":
+      return "bg-gradient-to-b from-violet-100 via-violet-50 to-white";
+    case "showingResults":
+      return "bg-gradient-to-b from-rose-100 via-rose-50 to-white";
+    case "finalSummary":
+      return "bg-gradient-to-b from-amber-200 via-amber-50 to-white";
+    default:
+      return "bg-gradient-to-b from-slate-100 via-white to-slate-100";
+  }
+}
 export default App;
