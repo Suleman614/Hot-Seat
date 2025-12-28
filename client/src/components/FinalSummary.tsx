@@ -14,6 +14,10 @@ export function FinalSummary({ room, me, onPlayAgain }: FinalSummaryProps) {
   const mindReader = leaderboard.reduce((prev, current) =>
     current.numCorrectGuesses > prev.numCorrectGuesses ? current : prev,
   );
+  const fakePerson = leaderboard.reduce((prev, current) =>
+    current.numCorrectGuesses < prev.numCorrectGuesses ? current : prev,
+  );
+  const mostKnown = resolveMostKnown(room);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center gap-6 px-6 py-10 text-center">
@@ -51,6 +55,8 @@ export function FinalSummary({ room, me, onPlayAgain }: FinalSummaryProps) {
       <div className="grid w-full gap-4 md:grid-cols-2">
         <AwardCard title="Master Trickster" description="Most people fooled" player={trickster} />
         <AwardCard title="Mind Reader" description="Most correct guesses" player={mindReader} />
+        <AwardCard title="Fakest Friend" description="Least correct guesses" player={fakePerson} />
+        <AwardCard title="Most Known" description="Hot seat answers guessed most" player={mostKnown} />
       </div>
 
       {me?.isHost && (
@@ -84,4 +90,24 @@ function AwardCard({
   );
 }
 
-
+function resolveMostKnown(room: RoomState): Player | undefined {
+  const totals = new Map<string, number>();
+  room.rounds.forEach((round) => {
+    const realSubmission = round.submissions.find((submission) => submission.isRealAnswer);
+    if (!realSubmission) return;
+    const votesForReal = round.votes.filter((vote) => vote.submissionPlayerId === realSubmission.playerId).length;
+    const current = totals.get(round.hotSeatPlayerId) ?? 0;
+    totals.set(round.hotSeatPlayerId, current + votesForReal);
+  });
+  let best: Player | undefined;
+  let bestVotes = -1;
+  totals.forEach((count, playerId) => {
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) return;
+    if (count > bestVotes) {
+      bestVotes = count;
+      best = player;
+    }
+  });
+  return best;
+}
