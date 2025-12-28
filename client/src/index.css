@@ -34,3 +34,114 @@ body {
 .answer-drop {
   animation: answer-drop 420ms ease-out;
 }
+
+@keyframes spotlight-in {
+  0% {
+    opacity: 0;
+    transform: translateX(40px) scale(0.96);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(-4px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes spotlight-out {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-40px) scale(0.98);
+  }
+}
+
+.spotlight-in {
+  animation: spotlight-in 260ms ease-out;
+}
+
+.spotlight-out {
+  animation: spotlight-out 160ms ease-in;
+}
+
+.spotlight-vignette {
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+@keyframes countdown-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.countdown-pop {
+  animation: countdown-pop 220ms ease-out;
+}
+
+@keyframes score-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(1);
+  }
+}
+
+.score-pop {
+  animation: score-pop 1200ms ease-out forwards;
+}
+
+@keyframes interstitial-fade {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.interstitial-fade {
+  animation: interstitial-fade 240ms ease-out;
+}
+
+@keyframes slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slide-in-right {
+  animation: slide-in-right 320ms ease-out;
+}
+
+.slide-in-hidden {
+  opacity: 0;
+  transform: translateX(40px);
+}

@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import type { Player, RoomState } from "../types";
+import { ScreenFade } from "./ScreenFade";
+import { SlideIn } from "./SlideIn";
+import { playSfx } from "../utils/sfx";
 
 interface FinalSummaryProps {
   room: RoomState;
@@ -19,57 +23,85 @@ export function FinalSummary({ room, me, isHost, onPlayAgain }: FinalSummaryProp
     current.numCorrectGuesses < prev.numCorrectGuesses ? current : prev,
   );
   const mostKnown = resolveMostKnown(room);
+  const [showOverlay, setShowOverlay] = useState(true);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  useEffect(() => {
+    setShowOverlay(true);
+    setShowLeaderboard(false);
+    playSfx("outro");
+    const revealTimer = window.setTimeout(() => {
+      setShowLeaderboard(true);
+    }, 220);
+    const overlayTimer = window.setTimeout(() => {
+      setShowOverlay(false);
+    }, 900);
+    return () => {
+      window.clearTimeout(revealTimer);
+      window.clearTimeout(overlayTimer);
+    };
+  }, [room.code]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center gap-6 px-6 py-10 text-center">
-      <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Game Over</p>
-      <h2 className="text-4xl font-black text-slate-900">Final Summary</h2>
-      <p className="text-base text-slate-500">Great storytelling! Here&apos;s how everyone did.</p>
+    <ScreenFade activeKey={`final-${room.code}`} className="min-h-screen">
+      <div className="relative mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center gap-6 px-6 py-10 text-center">
+        <div
+          className={`pointer-events-none absolute inset-0 bg-black/70 transition-opacity duration-500 ${
+            showOverlay ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        <p className="relative z-10 text-sm uppercase tracking-[0.3em] text-slate-400">Game Over</p>
+        <h2 className="relative z-10 text-4xl font-black text-slate-900">Final Summary</h2>
+        <p className="relative z-10 text-base text-slate-500">Great storytelling! Here&apos;s how everyone did.</p>
 
-      <div className="w-full rounded-3xl bg-white/90 p-6 shadow-2xl shadow-slate-200 backdrop-blur">
-        <ol className="space-y-3">
-          {leaderboard.map((player, index) => (
-            <li
-              key={player.id}
-              className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left ${
-                player.id === me?.id ? "border-indigo-200 bg-indigo-50" : "border-slate-100 bg-slate-50"
-              }`}
-            >
-              <div>
-                <p className="text-base font-semibold text-slate-900">
-                  {index + 1}. {player.name}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Score {player.score} · 🎯 {player.numCorrectGuesses} correct · 🃏 {player.numPeopleTricked} tricked
-                </p>
-              </div>
-              {index === 0 && (
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-                  Champion
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
+        <SlideIn active={showLeaderboard} className="relative z-10 w-full">
+          <div className="w-full rounded-3xl bg-white/90 p-6 shadow-2xl shadow-slate-200 backdrop-blur">
+            <ol className="space-y-3">
+              {leaderboard.map((player, index) => (
+                <li
+                  key={player.id}
+                  className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left ${
+                    player.id === me?.id ? "border-indigo-200 bg-indigo-50" : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <div>
+                    <p className="text-base font-semibold text-slate-900">
+                      {index + 1}. {player.name}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      Score {player.score} · 🎯 {player.numCorrectGuesses} correct · 🃏 {player.numPeopleTricked}{" "}
+                      tricked
+                    </p>
+                  </div>
+                  {index === 0 && (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+                      Champion
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </SlideIn>
+
+        <div className="relative z-10 grid w-full gap-4 md:grid-cols-2">
+          <AwardCard title="Master Trickster" description="Most people fooled" player={trickster} />
+          <AwardCard title="Mind Reader" description="Most correct guesses" player={mindReader} />
+          <AwardCard title="Fakest Friend" description="Least correct guesses" player={fakePerson} />
+          <AwardCard title="Most Known" description="Hot seat answers guessed most" player={mostKnown} />
+        </div>
+
+        {isHost && (
+          <button
+            type="button"
+            onClick={() => onPlayAgain()}
+            className="relative z-10 rounded-2xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500"
+          >
+            Play again with new rounds
+          </button>
+        )}
       </div>
-
-      <div className="grid w-full gap-4 md:grid-cols-2">
-        <AwardCard title="Master Trickster" description="Most people fooled" player={trickster} />
-        <AwardCard title="Mind Reader" description="Most correct guesses" player={mindReader} />
-        <AwardCard title="Fakest Friend" description="Least correct guesses" player={fakePerson} />
-        <AwardCard title="Most Known" description="Hot seat answers guessed most" player={mostKnown} />
-      </div>
-
-      {isHost && (
-        <button
-          type="button"
-          onClick={() => onPlayAgain()}
-          className="rounded-2xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500"
-        >
-          Play again with new rounds
-        </button>
-      )}
-    </div>
+    </ScreenFade>
   );
 }
 

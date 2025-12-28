@@ -3,9 +3,11 @@ import { Landing } from "./components/Landing";
 import { LobbyView } from "./components/LobbyView";
 import { GameBoard } from "./components/GameBoard";
 import { FinalSummary } from "./components/FinalSummary";
+import { ScreenFade } from "./components/ScreenFade";
 import { useGameClient } from "./hooks/useGameClient";
 import type { LandingMode } from "./components/Landing";
 import type { Player } from "./types";
+import { resolvePhaseTheme } from "./utils/phaseTheme";
 
 function App() {
   const [landingMode, setLandingMode] = useState<LandingMode>("create");
@@ -161,12 +163,13 @@ function App() {
   }
 
   const backgroundClass = resolveBackgroundClass(room.gameState);
+  const theme = resolvePhaseTheme(room.gameState);
 
   return (
     <div className={`min-h-screen ${backgroundClass}`}>
-      <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+      <header className={`flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 ${theme.header}`}>
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Hot Seat</p>
+          <p className={`text-xs uppercase tracking-[0.3em] ${theme.accentText}`}>Hot Seat</p>
           <h1 className="text-2xl font-black text-slate-900">{room.gameState === "lobby" ? "Lobby" : "Live game"}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -208,33 +211,35 @@ function App() {
         </div>
       )}
 
-      {room.gameState === "lobby" && (
-        <LobbyView
-          room={room}
-          isHost={isHost}
-          onStartGame={() => handleStartGame()}
-          onUpdateSettings={handleUpdateSettings}
-        />
-      )}
+      <ScreenFade activeKey={room.gameState} className="min-h-screen">
+        {room.gameState === "lobby" && (
+          <LobbyView
+            room={room}
+            isHost={isHost}
+            onStartGame={() => handleStartGame()}
+            onUpdateSettings={handleUpdateSettings}
+          />
+        )}
 
-      {["collectingAnswers", "reviewAnswers", "voting", "showingResults"].includes(room.gameState) && (
-        <GameBoard
-          room={room}
-          me={me}
-          isHost={isHost}
-          onSubmitAnswer={handleSubmitAnswer}
-          onSubmitVote={handleSubmitVote}
-          onReviewNext={handleReviewNext}
-          onAdvanceRound={handleAdvanceRound}
-          onVetoQuestion={handleVetoQuestion}
-          reviewState={reviewState}
-          showNextAnswer={showNextAnswer}
-        />
-      )}
+        {["collectingAnswers", "reviewAnswers", "voting", "showingResults"].includes(room.gameState) && (
+          <GameBoard
+            room={room}
+            me={me}
+            isHost={isHost}
+            onSubmitAnswer={handleSubmitAnswer}
+            onSubmitVote={handleSubmitVote}
+            onReviewNext={handleReviewNext}
+            onAdvanceRound={handleAdvanceRound}
+            onVetoQuestion={handleVetoQuestion}
+            reviewState={reviewState}
+            showNextAnswer={showNextAnswer}
+          />
+        )}
 
-      {room.gameState === "finalSummary" && (
-        <FinalSummary room={room} me={me} isHost={isHost} onPlayAgain={() => handleStartGame()} />
-      )}
+        {room.gameState === "finalSummary" && (
+          <FinalSummary room={room} me={me} isHost={isHost} onPlayAgain={() => handleStartGame()} />
+        )}
+      </ScreenFade>
       <audio ref={audioRef} preload="auto" />
     </div>
   );
