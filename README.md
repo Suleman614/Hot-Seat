@@ -1,6 +1,8 @@
-# Sule inpsired Hot Seat – Real-Time Party Game
+# Suleman inpsired Hot Seat – Real-Time Party Game
 
 Hot Seat is a full-stack TypeScript web app that lets friends jump into a bluffing party game with live rooms, rotating hot-seat rounds, and real-time scoring similar to a Kahoot session.
+
+# Link: https://hot-seat.onrender.com
 
 ## Tech Stack
 
